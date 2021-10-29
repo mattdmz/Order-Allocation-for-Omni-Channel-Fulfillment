@@ -93,7 +93,7 @@ class Rule(Allocator):
             Returns the node_index if allocation was successfull, else it returns -1
             Replaces delivery tour if allocation was successfull.'''
 
-        bestfeedback = -1000
+        best_feedback = -1000
 
         # get a ranking of node indexes based on the ALLOC_METHOD and ALLOC_FUNC defined in the parameters.
         ranked_nodes = getattr(self, self.operator)(order)
@@ -109,7 +109,7 @@ class Rule(Allocator):
                 # order allocatable
                 return node_index
             
-            elif feedback > bestfeedback:
+            elif feedback > best_feedback:
                 best_feedback = feedback
             
         # return the best feedback

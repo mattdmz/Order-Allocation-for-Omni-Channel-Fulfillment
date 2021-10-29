@@ -23,7 +23,7 @@ from utilities.datetime import time_diff
 
 class Nearest_Nodes(Rule):
 
-    ''' Allocates the order to the node with based on a certain calculated criterium.'''
+    ''' Allocates an order to the closest node that does not violate the allocaiton restrictions.'''
 
     __type__ = RULE_BASED
 
@@ -53,7 +53,7 @@ class Nearest_Nodes(Rule):
 
 class Nearest_Already_Allocated_Nodes(Rule):
 
-    ''' Allocates the order to the node with based on a certain calculated criterium.'''
+    ''' Allocates an order to the closest node that has already another order assigned and does not violate the allocaiton restrictions.'''
 
     __type__ = RULE_BASED
 
@@ -94,7 +94,7 @@ class Nearest_Already_Allocated_Nodes(Rule):
 
 class Smallest_Demand_Variance(Rule):
 
-    ''' Allocates the order to the node with based on a certain calculated criterium.'''
+    ''' Allocates an order to the node with the smallest max (min/median) demand variance for all the articles ordered.'''
 
     __type__ = RULE_BASED
 
@@ -122,9 +122,9 @@ class Smallest_Demand_Variance(Rule):
         return indexes[variances.argsort()]
 
 
-class Smallest_Stock_Duration(Rule):
+class Longest_Stock_Duration(Rule):
 
-    ''' Allocates the order to the node with based on a certain calculated criterium.'''
+    ''' Allocates the order to the node with the longest max (min, median, max) stock duration among all articles ordered.'''
 
     __type__ = RULE_BASED
 
@@ -150,6 +150,8 @@ class Smallest_Stock_Duration(Rule):
             indexes[i] = node.index
             stock_duration[i] = operator((self.stock.current_level[line.article.index, node.index] 
                                         - self.demand.__getattr__("avg", line.article.index, node.index)) for line in order.lines)
+
+        return indexes[stock_duration.argsort()[::-1]]
 
 
 class Dynamic_1(Rule):

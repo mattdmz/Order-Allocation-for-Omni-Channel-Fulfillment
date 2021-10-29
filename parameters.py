@@ -68,9 +68,9 @@ STOCK_SEED = FIX_LEVEL      # options: FIX_LEVEL, RNDM_BTWN_REORDER_AND_TARGET_L
 # source Delivery Van --> FULFILLMENT CENTER: https://www.iveco.com/germany/neufahrzeuge/pages/iveco_daily_7_tonner.aspx#overview --> 7,5t
 
 # km/min ( / 3.14 -> Annahme der Annähreung der echten Fahrzeit, da Entferung in Luftlinie gemessen wird)
-AVG_SPEED = {   SMALL_STORE: 0.1 / 3.14,  #6 km/h 
-                REGULAR_STORE: 0.5 / 3.14, #30 km/h 
-                FULFILLMENT_CENTER: 0.83 / 3.14 #50 km/h 
+AVG_SPEED = {   SMALL_STORE: 0.1, # / 3.14,          # 6 km/h 
+                REGULAR_STORE: 0.5, # / 3.14,        # 30 km/h 
+                FULFILLMENT_CENTER: 0.83, # / 3.14   # 50 km/h 
 }
 
 END_OF_TOURS = time(21, 0, 0)
@@ -154,8 +154,8 @@ ORDER_PROCESSING_RATE = {   SMALL_STORE: 0.35,
 }
 
 # period of time used to execute orders
-ORDER_PROCESSING_START = date(2019,3,1)
-ORDER_PROCESSING_END = date(2019,3,15)
+ORDER_PROCESSING_START = date(2019, 3, 1)
+ORDER_PROCESSING_END = date(2019, 3, 5)
 
 
 

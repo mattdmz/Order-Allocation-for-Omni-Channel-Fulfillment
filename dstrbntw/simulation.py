@@ -36,7 +36,7 @@ class Simulation:
         #init optimization schedule
         allocation_schedule = []
 
-        for this_date in daterange(ORDER_PROCESSING_START, ORDER_PROCESSING_END):
+        for this_date in daterange(ORDER_PROCESSING_START, ORDER_PROCESSING_END + timedelta(days=1)):
             this_date:date
 
             # check if day is a workingday
@@ -141,7 +141,7 @@ class Simulation:
             and carries out actions at predefined timestamps.'''
 
         # days
-        for this_date in daterange(ORDER_PROCESSING_START, ORDER_PROCESSING_END):
+        for this_date in daterange(ORDER_PROCESSING_START, ORDER_PROCESSING_END + timedelta(days=1)):
             this_date:date
 
             # check if day is a workingday

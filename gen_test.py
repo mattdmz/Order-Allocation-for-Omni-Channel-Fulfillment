@@ -54,22 +54,13 @@
 # Attempt 2 (this one seems to work, but on closer inspection it duplicates 
 #the last item in the dictionary, because another reference is created to it):
 
-from numpy import array, delete
+from numpy import array
 
+avg_speed = 0.2
+distances = array([0.124578, 1.124587, 4.21547, 1.12457])
+loading_time_per_order = 0.5
+service_time_per_order = 4
 
-class deliv:
-    def __init__(self) -> None:
-        self.duration_matrix = array([[   0, 1, 2, 3, 4, 5],
-                                        [   1, 1, 2, 3, 4, 5],
-                                        [   2, 1, 2, 3, 4, 5],
-                                        [   3, 1, 2, 3, 4, 5],
-                                        [   4, 1, 2, 3, 4, 5],
-                                        [   5, 1, 2, 3, 4, 5]])
-    def test(self, delivery_index):
+x = (distances/avg_speed) + (loading_time_per_order + service_time_per_order)
 
-        self.duration_matrix = delete(self.duration_matrix, delivery_index + 1, axis=0)
-        self.duration_matrix = delete(self.duration_matrix, delivery_index + 1, axis=1)
-
-d = deliv()
-d.test(0)
-print(d.duration_matrix)
+print(x)

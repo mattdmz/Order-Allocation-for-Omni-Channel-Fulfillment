@@ -33,13 +33,12 @@ class Vehicle:
         self.volume_capacity = MAX_LOADING_VOLUME[vehicle_type]
         self.pause_btw_tours = PAUSE_BTW_TOURS[vehicle_type]
 
-    def operation_time(self, distances:array) -> float:
+    def operation_time(self, distances:array) -> array:
 
         ''' Returns the driving time for an array of distances for the delivery vehicle
-            and adds the loading time / service time (hand over time) in proportion 
-            to the number of stops. '''
+            and adds the loading time / service time (hand over time). '''
 
-        return (self.avg_speed * distances) + ((self.loading_time_per_order + self.service_time_per_order) / len(distances))
+        return (distances/self.avg_speed) + (self.loading_time_per_order + self.service_time_per_order)
 
 class Delivery(Vehicle):
 
@@ -136,8 +135,6 @@ class Delivery(Vehicle):
         #add stop to distance matrix
         self.add_to_duration_matrix(new_durations)
 
-        print(len(self.orders_to_deliver), self.duration_matrix)
-
         return new_durations
 
     def remove_order(self, order:Order) -> None:
@@ -212,19 +209,18 @@ class Delivery(Vehicle):
 
         return list(self.orders_to_deliver[index - 1] for index in route[1:-1])
 
-    def delivery_start(self, batches:list, delivery_duration:int, processing_day:date) -> time:
+    def delivery_start(self, batch_index:int, batches:list, delivery_duration:int, processing_day:date) -> time:
 
         '''Retunrns the start time of the delivery tour.'''
 
-        # is last batch
-        if len(batches) == 1:
+        if batch_index == 0:
             
             # set delivery tour start to min(OP_END (=node closure), or END_OF_TOURS - delivery tour duration)
-            start_time = min(OP_END_TIME[self.depot_type], calc_time(END_OF_TOURS, delivery_duration + self.pause_btw_tours, SUBTRACT))
+            start_time = calc_time(min(OP_END_TIME[self.depot_type], END_OF_TOURS), delivery_duration, SUBTRACT)
             
         else:
             # set delivery tour start to end of privous delivery tour + a small pause
-            start_time = calc_time(batches[len(batches)-1].delivery_end, self.pause_btw_tours, ADD)
+            start_time = calc_time(batches[batch_index - 1].delivery_end.time(), self.pause_btw_tours, ADD)
             
         return datetime.combine(processing_day, start_time)   
 
@@ -314,17 +310,19 @@ class Delivery(Vehicle):
                 batches.append(new_batch)
             
             else:
+                # sort batches in descending order based on their route duration
                 for index, batch in enumerate(batches):
                     index:int
                     batch:Delivery.Batch
 
-                    if batch.delivery_duration < new_batch.delivery_duration:
+                    if new_batch.delivery_duration > batch.delivery_duration:
                         batches.insert(index, new_batch)
                         break
         
         # schedule operations for batches
-        for batch in batches:
-            batch.schedule(self.delivery_start(batches, batch.delivery_duration, processing_day))
+        for index, batch in enumerate(batches):
+            delivery_start = self.delivery_start(index, batches, batch.delivery_duration, processing_day)
+            batch.schedule(delivery_start)
         
         # sort routs in descending order based on their duration
         return batches
@@ -336,7 +334,8 @@ class Delivery(Vehicle):
         for batch in self.batches:
             batch:Delivery.Batch
 
-            batch.orders.remove(order)
+            if order in batch.orders:
+                batch.orders.remove(order)
 
     def schedule_batches(self, processing_day:date) -> None:
         
