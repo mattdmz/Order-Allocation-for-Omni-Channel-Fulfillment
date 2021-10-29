@@ -7,15 +7,13 @@
 
 
 from mysql.connector.errors import DatabaseError
-from numpy import array
 
 from database.connector import Database, NoDataError
 from database.constants import ID
 from dstrbntw.abcanalysis import Abc_Analysis 
-from dstrbntw.constants import INDEX
 from dstrbntw.errors import ImportModelDataError
 from dstrbntw.location import Location
-from dstrbntw.tour import Tour
+from dstrbntw.delivery import Delivery
 from database.views import Specific_Nodes
 from utilities.general import create_obj_dict
 from parameters import *
@@ -46,8 +44,8 @@ class Node():
         #set up order acceptance status
         self.accepting_orders = True
 
-        #init delivery tour
-        self.tour = Tour(self)
+        #init delivery delivery_tour
+        self.delivery = Delivery(self.node_type, self.location)
 
     @property
     def supply_rate(self) -> float:
@@ -62,12 +60,12 @@ class Node():
         '''Returns stock holding rate based on node type.'''
 
         return STOCK_HOLDING_RATE[self.node_type]
-
+        
     @property
     def order_processing_rate(self) -> float:
 
         '''returns order processing rate based on node type'''
-        
+            
         return ORDER_PROCESSING_RATE[self.node_type]
 
     @property
@@ -76,7 +74,7 @@ class Node():
         '''returns fix delivery rate per delivery tour'''
 
         return TOUR_RATE[self.node_type]
-    
+        
     @property
     def route_rate(self) -> float:
 
@@ -104,11 +102,11 @@ class Node():
 
         self.abc_analysis_demand = abc_analysis_demand
 
-    def processing_duration(self, orderlines_to_process) -> int:
+    def processing_duration(self, lines_to_process:int) -> int:
 
         '''Returns the rounded processing duration for a batch of orderlines to process in minutes.'''
 
-        return int(round(self.order_processing_capacity * orderlines_to_process, 0))
+        return int(round(self.order_processing_capacity * lines_to_process, 0))
 
 
 class Nodes:
@@ -117,11 +115,32 @@ class Nodes:
         pass
     
     @property
+    def stock_holding_rates(self) -> list:
+
+        '''Returns a list of stock holding rates per node.'''
+
+        return list(node.stock_holding_rate for node in self.dict.values())
+    
+    @property
+    def tour_rates(self) -> list:
+
+        '''Returns a list of tour rates per node.'''
+
+        return list(node.tour_rate for node in self.dict.values())
+        
+    @property
+    def route_rates(self) -> list:
+
+        '''Returns a list of route rates per node.'''
+
+        return list(node.route_rate for node in self.dict.values())
+
+    @property
     def tour_durations(self) -> list:
 
-        ''' Returns a list of all tour durations.'''
+        ''' Returns a list of all delivery_tour durations.'''
 
-        return list(node.tour.tot_duration for node in self.dict.values())
+        return list(node.delivery.tot_duration for node in self.dict.values())
 
     @property
     def accepting_orders(self) -> list:
@@ -144,7 +163,7 @@ class Nodes:
                 raise NoDataError(Specific_Nodes.__name__ + f"for {region_column}: {region_id}")
             
             self.dict = create_obj_dict(data, Node, key=ID)
-            self.index_dict = create_obj_dict(data, Node, key=INDEX)
+            self.index_dict = self.create_index_dict()
 
         except NoDataError as err:
             raise ImportModelDataError("database", err_name=NoDataError.__name__, err=err)
@@ -159,19 +178,34 @@ class Nodes:
 
         '''Returns a node from the nodes.dict based on its id or index.'''
 
-        return self.dict[id] if id is not None else self.index_dict[index]
+        return self.dict[self.index_dict[index]] if index is not None else self.dict[id]
 
     def __getattr__(self, attr:str, id:int=None, index:int=None):
 
         '''Returns a node's attribute based on its id orindex in the nodes.dict.'''
 
-        return getattr(self.dict[id], attr) if id is not None else getattr(self.index_dict[index], attr)
+        return getattr(self.dict[self.index_dict[index]], attr) if index is not None else getattr(self.dict[id], attr) 
+
+    def create_index_dict(self):
+
+        '''Returns a dict where nodes can be accessed by their indexes.'''
+        
+        index_dict = {}
+
+        for node in self.dict.values():
+            node:Node
+
+            index_dict[node.index] = node.id
+
+        return index_dict
 
     def change_order_acceptance_status(self, status:bool) -> None:
 
         '''Sets order accepting status for all nodes to True/False depending on status.'''
 
         for node in self.dict.values():
+            node:Node
+            
             node.accepting_orders = status 
             
 

@@ -6,22 +6,21 @@
 ###############################################################################################
 
 from datetime import datetime, time
-from numpy import array, append, concatenate, delete, float32, insert, zeros
+from numpy import array, append, concatenate, delete, float32, zeros
 from util import sol2routes
 
 
-from dstrbntw.constants import ROUTE_INDEX
-from dstrbntw.location import distance
+from dstrbntw.location import Location, distance
 from dstrbntw.customers import Customer
 from parameters import *
 from utilities.constants import ADD, SUBTRACT
-from utilities.timesim import calc_time
+from utilities.datetime import calc_time
 from transactions.orders import Order
 from vrp.paersenssavings import paessens_savings_init
 
 class Vehicle:
 
-    '''Parent class for each Tour containing all constant attributes and methodsconcering the delivey vehicle.'''
+    '''Parent class for each delivery containing all constant attributes and methodsconcering the delivey vehicle.'''
 
     def __init__(self, vehicle_type:int) -> None:
 
@@ -42,9 +41,9 @@ class Vehicle:
 
         return (self.avg_speed * distances) + ((self.loading_time_per_order + self.service_time_per_order) / len(distances))
 
-class Tour(Vehicle):
+class Delivery(Vehicle):
 
-    def __init__(self, node) -> None:
+    def __init__(self, depot_type:int, depot_location:Location) -> None:
 
         '''Inherits vehicle constants.
             
@@ -58,12 +57,13 @@ class Tour(Vehicle):
             <-- duration (obj_v = result from objective function)'''
 
         #inherit delivery vehicle
-        super().__init__(node.node_type)
+        super().__init__(depot_type)
 
         # delivery attributes
-        self.depot = node
+        self.depot_type = depot_type
+        self.depot_location = depot_location
 
-        #list of orders assigned to the tour
+        # list of orders assigned to the delivery tour
         self.orders_to_deliver = []
 
         #duration matrix used to build route
@@ -84,16 +84,16 @@ class Tour(Vehicle):
     def calc_duration_to_other_stops(self, customer:Customer) -> array:
 
         ''' Calculates the distance based driving duration
-            to each other stop of the tour incl. loading time for each order (stop) and service time
+            to each other stop of the delivery tour incl. loading time for each order (stop) and service time
             for the handover of the order.'''
 
-        #calculates stop to distance matrix
+        # calculates stop to distance matrix
         new_distances = zeros(len(self.orders_to_deliver))
 
-        #calcualte distance to depot
-        new_distances[0] = distance(self.depot.location, customer.location)
+        # calcualte distance to depot
+        new_distances[0] = distance(self.depot_location, customer.location)
 
-        #calcualte distances of new stop to other delivery locations of the tour
+        # calcualte distances of new stop to other delivery locations of the delivery tour
         if len(self.orders_to_deliver) > 1:
             for index, order in enumerate(self.orders_to_deliver[1:], start=1):
                 new_distances[index] = distance(order.customer.location, customer.location)
@@ -116,31 +116,19 @@ class Tour(Vehicle):
 
         '''Removes location form duration matrix.'''
 
-        delete(self.duration_matrix, order.route_index, axis=0)
-        delete(self.duration_matrix, order.route_index, axis=1)
-
-    def load(self, order) -> None:
-
-        '''Reduces available delivery volume of vehicle by volume required by order'''
-
-        self.delivery_volume[order.id] = order.volume
-
-    def unload(self, order) -> None:
-
-        '''Raises available delivery volume of vehicle by volume required by order'''
-
-        del self.delivery_volume[order.id]
+        self.duration_matrix = delete(self.duration_matrix, order.delivery_index + 1, axis=0) # +1 as the depot has index 0
+        self.duration_matrix = delete(self.duration_matrix, order.delivery_index + 1, axis=1) # +1 as the depot has index 0
 
     def add_order(self, order:Order) -> array:
 
         '''Adds order to delivery tour.'''
 
-        #add a new stop to the tour
+        #add a new stop to the delivery tour
         self.orders_to_deliver.append(order)
         self.delivery_volume.append(order.volume)
 
         #set a loading index to find order on all tours
-        setattr(order, ROUTE_INDEX, len(self.orders_to_deliver))
+        order.delivery_index = len(self.orders_to_deliver) - 1
 
         #calculate durations to drive to all existing stops and to carry out loading and delivery operations 
         new_durations = self.calc_duration_to_other_stops(order.customer)
@@ -148,24 +136,20 @@ class Tour(Vehicle):
         #add stop to distance matrix
         self.add_to_duration_matrix(new_durations)
 
+        print(len(self.orders_to_deliver), self.duration_matrix)
+
         return new_durations
 
     def remove_order(self, order:Order) -> None:
 
-        '''Removes order from delivery tour.'''
+        '''Removes order from delivery delivery tour.'''
         
-        #add a new stop to the tour
-        del self.orders_to_deliver[order.route_index]
-        del self.delivery_volume[order.route_index]
-
-        #remove stop to distance matrix
+        self.orders_to_deliver.remove(order)
+        self.delivery_volume.remove(order.volume)
+        self.routes.remove(order.delivery_index)
         self.remove_from_duration_matrix(order)
-
-        #remove order from route
-        self.routes.remove(order.route_index)
-
-        #set a loading index to find order on all tours
-        setattr(order, ROUTE_INDEX, 0)
+        self.remove_from_batches(order)
+        order.delivery_index = 0
 
     def position_with_nearest_neighbours(self, new_durations:array) -> int:
 
@@ -176,7 +160,8 @@ class Tour(Vehicle):
 
         #determine best position on route
         for index in range(1, len(self.routes)):
-            
+            index:int
+
             # calculate duration if node would be inserted between routes[index-1] and routes[index]
             new_dur = new_durations[self.routes[index-1]] + new_durations[self.routes[index]]
             
@@ -190,7 +175,7 @@ class Tour(Vehicle):
     def build_routes(self, time_capacity_per_tour:int=MAX_WORKING_TIME, node_type:int=None, max_iterations_ls:int=PS_88_MAX_ITER_LOC_SEARCH) -> None:
 
         ''' Passes parameters to VRP Solver.
-            Time_capacity_per_tour defines max time for every delivery tour
+            Time_capacity_per_tour defines max time for every delivery delivery tour
             Stores the returned route list with the stop ids (self.routes)
             and objective funciton value (self.tot_duration).'''
 
@@ -202,12 +187,12 @@ class Tour(Vehicle):
 
         '''Add the new order to deliver between its two nearest neighbours on the existing route.'''
         
-        #check if the order is the first one added to the tour (len == 2 because tour has the depot index 0 as start and end value).
+        #check if the order is the first one added to the tour (len == 2 because delivery tour has the depot index 0 as start and end value).
         if len(self.routes) == 2:
-            #insert between tour start and tour end at depot
+            #insert between delivery tour start and delivery tour end at depot
             self.routes.insert(1, len(self.orders_to_deliver)) 
         
-        else: # orders to deliver where already added to tour.
+        else: # orders to deliver where already added to delivery tour.
 
             #insert index of last added order in duration matrix on the delivery route betwenn its two nearest neighgours
             self.routes.insert(self.position_with_nearest_neighbours(new_durations), len(self.orders_to_deliver))
@@ -217,7 +202,7 @@ class Tour(Vehicle):
 
     def route_duration(self, route:list) -> int:
 
-        '''Returns the rounded duration of a tour in minutes.'''
+        '''Returns the rounded duration of a delivery tour in minutes.'''
 
         return int(round(sum(self.duration_matrix[route[r], route[r+1]] for r in range(len(route) - 1)), 0))
 
@@ -227,44 +212,77 @@ class Tour(Vehicle):
 
         return list(self.orders_to_deliver[index - 1] for index in route[1:-1])
 
-    def delivery_start(self, batches:list, delivery_duration:int) -> time:
+    def delivery_start(self, batches:list, delivery_duration:int, processing_day:date) -> time:
 
         '''Retunrns the start time of the delivery tour.'''
 
         # is last batch
         if len(batches) == 1:
-            # set tour start to min(OP_END (=node closure), or END_OF_TOURS - tour duration)
-            return min(OP_END[self.depot.node_type], calc_time(END_OF_TOURS, delivery_duration + self.pause_btw_tours, SUBTRACT))
+            
+            # set delivery tour start to min(OP_END (=node closure), or END_OF_TOURS - delivery tour duration)
+            start_time = min(OP_END_TIME[self.depot_type], calc_time(END_OF_TOURS, delivery_duration + self.pause_btw_tours, SUBTRACT))
+            
         else:
-            # set tour start to end of privous tour + a small pause
-            return calc_time(batches[len(batches)-1].delivery_end, self.pause_btw_tours, ADD)    
+            # set delivery tour start to end of privous delivery tour + a small pause
+            start_time = calc_time(batches[len(batches)-1].delivery_end, self.pause_btw_tours, ADD)
+            
+        return datetime.combine(processing_day, start_time)   
+
 
     class Batch:
 
         ''' A batch of orders resulting from a delivery tour that is processed togheter at a node before delivery.
-            Given its size, it defines the start and end of the delivery tour as well as the start of the order processing.'''
+            Given its size, it defines the start and end of the delivery delivery tour as well as the start of the order processing.'''
 
-        def __init__(self, processing_node, orders:list, delivery_duration:int) -> None:
+        def __init__(self, processing_node_type, orders:list, delivery_duration:int) -> None:
 
             '''Assigns arguments as instance attributes.'''
             
-            self.processing_node = processing_node
+            self.processing_node_type = processing_node_type
             self.orders = orders
             self.delivery_duration = delivery_duration
+
+        @property
+        def order_processing_rate(self) -> float:
+
+            '''returns order processing rate based on node type'''
+            
+            return ORDER_PROCESSING_RATE[self.processing_node_type]
+
+        @property
+        def tour_rate(self) -> float:
+
+            '''returns fix delivery rate per delivery tour'''
+
+            return TOUR_RATE[self.processing_node_type]
+        
+        @property
+        def route_rate(self) -> float:
+
+            '''returns variable cost rate per working minute'''
+
+            return ROUTE_RATE[self.processing_node_type]  
+
+        @property
+        def order_processing_capacity(self) -> float:
+
+            '''Returns the order processing capacity in number of orderlines per minute for a specific node type.'''
+
+            return OP_CAPACITY[self.processing_node_type]   
 
         @property
         def delivery_costs(self) -> float:
 
             '''Returns the delivery costs for this batch.'''
 
-            return self.processing_node.tour_rate + self.processing_node.route_rate * self.delivery_duration
+            return self.tour_rate + self.route_rate * self.delivery_duration
 
         @property
         def processing_duration(self) -> int:
         
-            '''Returns processing duration for a batch of orders'''
+            '''Returns processing duration for a batch of orders in minutes.'''
 
-            return self.processing_node.processing_duration(sum(order.number_of_lines for order in self.orders))
+            return int(round(sum(order.number_of_lines for order in self.orders) * self.order_processing_capacity, 0))
 
         def schedule(self, delivery_start:datetime) -> None:
 
@@ -272,11 +290,10 @@ class Tour(Vehicle):
                 based on delivery start of a batch.'''
 
             self.delivery_start = delivery_start
-            self.delivery_end = calc_time(self.delivery_start, self.delivery_duration, ADD)
-            self.order_processing_start =  calc_time(self.delivery_start, self.processing_duration, SUBTRACT)
+            self.delivery_end = self.delivery_start + timedelta(minutes=self.delivery_duration)
+            self.processing_start =  self.delivery_start - timedelta(minutes=self.processing_duration)
             
-
-    def create_batches(self) -> list:
+    def create_batches(self, processing_day:date) -> list:
 
         ''' Separetes single tours and creates batches.
             Schedules operations for batch. '''
@@ -290,40 +307,53 @@ class Tour(Vehicle):
             delivery_duration = self.tot_duration if route == self.routes else self.route_duration(route)
             
             # create a batch of orders to deliver on a tour
-            new_batch = self.Batch(self.depot, self.get_orders_of_route(route), delivery_duration)
+            new_batch = self.Batch(self.depot_type, self.get_orders_of_route(route), delivery_duration)
             
             # sort batches descending according to their duration
             if len(batches) == 0:
                 batches.append(new_batch)
+            
             else:
                 for index, batch in enumerate(batches):
+                    index:int
+                    batch:Delivery.Batch
+
                     if batch.delivery_duration < new_batch.delivery_duration:
                         batches.insert(index, new_batch)
                         break
         
         # schedule operations for batches
         for batch in batches:
-            batch.schedule(self.delivery_start(batches, batch.delivery_duration))
+            batch.schedule(self.delivery_start(batches, batch.delivery_duration, processing_day))
         
         # sort routs in descending order based on their duration
-        return batches                         #sorted(key=lambda batch: batch.order_processing_start, reverse=True)
+        return batches
 
-    def schedule_batches(self) -> None:
+    def remove_from_batches(self, order:Order) -> None:
+
+        '''Removes an order form batches. the schedule batches method must be run rerun after having called this method.'''
+
+        for batch in self.batches:
+            batch:Delivery.Batch
+
+            batch.orders.remove(order)
+
+    def schedule_batches(self, processing_day:date) -> None:
         
         '''Reschedules tour and creates batches of orders to process and deliver together.'''
 
-        self.batches = self.create_batches()
+        self.batches = self.create_batches(processing_day)
 
-    def execution_start(self) -> time:
+    def processing_start(self) -> datetime:
         
         '''Returns the start time of the order processing and delivery the tour.'''
 
         try:
-            return self.batches[0].order_processing_start
+            return self.batches[0].processing_start
         
         except IndexError:
             # no batches added yet
-            return time(23, 59, 59)
+            return datetime(2050, 1, 1, 1, 1)
 
     def batch_to_process(self) -> list:
         
@@ -338,6 +368,6 @@ class Tour(Vehicle):
 
         '''Returns True if order processing is starts after current_time, else returns False.'''
 
-        return True if self.execution_start() > current_time.time() else False
+        return True if self.processing_start() > current_time else False
 
 

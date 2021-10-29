@@ -8,17 +8,10 @@
 
 # ____________________________________________________________________________________________
 
+# Evaluation_Model
 
-# Evaluated_Allocation
-
-ABS_IMPRVMNT = "absolute_improvement"
-ALLOC_ARR = "allocation"
-CURRENT_TIME = "current_time"
-ITER = "iteration"
-OBJ_VALUE = "objective_value"
-PUNCTUALITY = "punctuality"
-RANK = "rank"
-REGION_ID = "region_id"
+TOUR_DURATIONS = "tour_durations"
+TOUR_RATES = "tour_rates"
 
 # ____________________________________________________________________________________________
 
@@ -33,7 +26,7 @@ MEDIAN = "median"
 # Others
 
 ALLOCATION = "allocation"
-TOUR = "tour"
+DELIVERY = "delivery"
 
 # ____________________________________________________________________________________________
 

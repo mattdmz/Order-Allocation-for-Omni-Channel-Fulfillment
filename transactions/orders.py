@@ -8,9 +8,10 @@
 from datetime import datetime, timedelta
 
 from dstrbntw.articles import Articles
-from dstrbntw.constants import SUPPLY_RATE, ORDER_PROCESSING_RATE, PROFIT
 from dstrbntw.customers import Customers
+from dstrbntw.location import distance
 from parameters import MAX_PAL_VOLUME
+from protocols.constants import *
 
 
 class Order():
@@ -20,22 +21,25 @@ class Order():
             '''Assigns index (int) to instance and 
                 assigns imported data to attributes.'''
             
-            #assign attributes
+            # assign attributes
             self.id = data[0]
             customer_id = data[1]
             self.date_time = datetime.combine(data[2], datetime.min.time()) + data[3]
             self.price = float(data[4])
             self.volume = float(data[5])
-            #self.weight = float(data[6])
+            # self.weight = float(data[6])
 
-            #add customer with the customer_id imported
+            # add customer with the customer_id imported
             self.customer = customers.__get__(customer_id)
 
-            #init sales lines (to be added)
+            #  init sales lines (to be added)
             self.lines = []
 
-            #init allocation (set to not allocated) --> node
-            self.allocation =  None
+            # set placeholders
+            self.processable = None
+            self.allocated_node =  None
+            self.allocation_time = None
+            self.delivery_index = None
 
         @property
         def number_of_lines(self) -> int:
@@ -45,25 +49,78 @@ class Order():
             return len(self.lines)
 
         @property
-        def supply_rate(self, node=None) -> float:
+        def pieces(self) -> int:
 
-            '''Return the costs to supply the demanded articles from the order to the delivering node.'''
+            '''Returns the sum of pieces ordered.'''
 
-            return getattr(self.allocation if node is None else node, SUPPLY_RATE)  * self.volume / MAX_PAL_VOLUME
+            return sum(line.quantity for line in self.lines)
 
         @property
         def supply_costs(self) -> float:
 
             '''Returns the supply costs for an order based on its allocation.'''
 
-            return self.allocation.supply_rate * self.volume
+            return self.allocated_node.supply_rate * self.volume / MAX_PAL_VOLUME
         
         @property
         def processing_costs(self) -> float:
 
             '''Returns the processing costs for an order based on its allocation.'''
 
-            return self.number_of_lines * self.allocation.order_processing_rate
+            return self.number_of_lines * self.allocated_node.order_processing_rate
+
+        def delivered_sameday(self, current_time:datetime, cut_off_time:datetime) -> bool:
+
+            ''' Returns True or False depending if the order is delivered sameday or not
+                For orders coming in after cut_off_time, sameday == True if they are deliverd on the subsequent day.'''
+
+            return True if (self.date_time <= cut_off_time and self.allocated_node !=None) or \
+                            (self.date_time > cut_off_time and (current_time + timedelta(days=1)).date() == self.date_time.date()) else False
+
+        def protocol(self, region_id:int, current_time:datetime,  cut_off_time:datetime=None, delivery_costs:float=None, stock_holding_costs:float=None, failure:int=None) -> dict:
+
+            '''Returns a dict documenting the (not) processing of the order and its related costs.'''
+
+            if self.allocated_node != None:
+
+                supply_costs = self.supply_costs
+                processing_costs = self.processing_costs
+                
+                # calculate values for successfully allocated order
+                return {    ORDER_ID: self.id,
+                            REGION_ID: region_id,
+                            ARRIVAL_DATETIME: self.date_time,
+                            ALLOCATION_DATETIME: self.allocation_time,
+                            PROC_DATETIME: current_time,
+                            ALLOCATED_NODE_ID: self.allocated_node.id,
+                            POTENTIAL_ONLINE_REVENUE: self.price,
+                            ONLINE_REVENUE: self.price,
+                            SUPPLY_COSTS: supply_costs, 
+                            ORDER_PROCESSING_COSTS: processing_costs, 
+                            DELIVERY_COSTS: delivery_costs,
+                            STOCK_HOLDING_COSTS: stock_holding_costs,
+                            PROFIT: self.price - supply_costs - processing_costs - delivery_costs - stock_holding_costs,
+                            PUNCTUALITY: self.delivered_sameday(current_time, cut_off_time),
+                            DISTANCE: distance(self.customer.location, self.allocated_node.location)
+                        }
+            else:
+                # return zeros for unsuccessfully allocated order
+                return {    ORDER_ID: self.id,
+                            REGION_ID: region_id,
+                            ARRIVAL_DATETIME: self.date_time,
+                            ALLOCATION_DATETIME: current_time,
+                            PROC_DATETIME: "",
+                            ALLOCATED_NODE_ID: failure,
+                            POTENTIAL_ONLINE_REVENUE: self.price,
+                            ONLINE_REVENUE: 0,
+                            SUPPLY_COSTS: 0, 
+                            ORDER_PROCESSING_COSTS: 0, 
+                            DELIVERY_COSTS: 0,
+                            STOCK_HOLDING_COSTS: 0,
+                            PROFIT: 0,
+                            PUNCTUALITY: False,
+                            DISTANCE: 0
+                        }
 
 
         class Line():
@@ -97,29 +154,12 @@ class Orders:
         self.list = []
         self.allocation_retry_needed = []
 
-        # init profit from processing orders
-        self.profit = 0
-
     @property
-    def possible_revenue(self) -> list:
+    def potential_revenue(self) -> list:
 
-        '''Returns a list of with the price for all orders.'''
+        '''Returns a list of with 'order.price  * (1-MARGE)' for all orders.'''
 
         return list(order.price for order in self.list)
-
-    @property
-    def volume_supplied(self) -> list:
-
-        '''Returns a list of with the volume for all orders.'''
-
-        return list(order.volume for order in self.list)
-
-    @property
-    def lines_to_process(self) -> list:
-
-        '''Returns a list of with the number of orderlines for all orders.'''
-
-        return list(order.number_of_lines for order in self.list)
 
     @property
     def arrival_datetimes(self) -> list:
@@ -133,28 +173,14 @@ class Orders:
 
         '''Returns a list of already allocated orders.'''
 
-        return list(order for order in self.list if order.allocation != None)
+        return list(order for order in self.list if order.allocated_node != None)
 
     @property
     def already_allocated(self) -> list:
 
         '''Returns a list of True/False based depending if the order was already allocated or not.'''
 
-        return list(True if order.allocation != None else False for order in self.list)
-
-    @property
-    def allocation_based_supply_rates(self) -> list:
-
-        '''Returns a list of allocation based supply rates based on the node_type for all orders.'''
-
-        return list(order.supply_rate if order.allocation is not None else 0 for order in self.list)
-
-    @property
-    def allocation_based_processing_rates(self) -> list:
-
-        '''Returns a list of allocation based order processing rates based on the node_type for all orders.'''
-
-        return list(getattr(order.allocation, ORDER_PROCESSING_RATE) if order.allocation is not None else 0 for order in self.list)
+        return list(True if order.allocated_node != None else False for order in self.list)
 
     def __get__(self, index:int) -> Order:
 
@@ -174,45 +200,38 @@ class Orders:
     
         self.list = []
 
-    def store_profit(self, result:dict) -> None:
+    def allocation_based_supply_costs(self) -> list:
 
-        '''Adds profit to current profit'''
+        '''Returns a list of allocation based supply costs based on the node_type for all orders.'''
 
-        self.profit += sum(result[PROFIT])
+        return list(order.supply_costs if order.allocated_node is not None else 0 for order in self.list)
 
-    def collect_profit(self) -> float:
+    def allocation_based_processing_costs(self) -> list:
 
-        '''Returns profit and resets profit attribute'''
+        '''Returns a list of allocation based order processing costs based on the node_type for all orders.'''
 
-        profit = self.profit
-        self.profit = 0
-        return profit
+        return list(order.processing_costs if order.allocated_node is not None else 0 for order in self.list)
 
     def delivered_sameday(self, current_time:datetime, cut_off_time:datetime) -> list:
 
-        '''Returns a list of booleans depending if the order is delivered sameday or not for all orders.'''
+        ''' Returns True or False depending if the order is delivered sameday or not
+            For orders coming in after cut_off_time, sameday == True if they are deliverd on the subsequent day.'''
 
-        return list(True if (order.date_time <= cut_off_time and order.allocation !=None) or \
-                            (order.date_time > cut_off_time and (current_time + timedelta(days=1)).date() == order.date_time.date())
-                        else False for order in self.list)
+        return list(order.delivered_sameday(current_time, cut_off_time) for order in self.list)
 
-    def reschedule_allocation(self) -> None:
+    def allocation_retry(self, order:Order) -> None:
 
-        ''' Removes orders that could not be allocated from orders.list
-            and adds them to orders.allocation_retry_needed.'''
+        '''Adds an order which could not be allocated to the allocation_retry_needed list.'''
 
-        for order in self.list:
+        self.allocation_retry_needed.append(order)
 
-            if order.allocation == None:
-                self.allocation_retry_needed.append(order)
+    def reschedule_unallocated(self) -> None:
 
-    def retry_allocation(self) -> None:
+        ''' Removes orders that could not be allocated and need a allocation retry 
+            from orders.allocation_retry_needed and adds them to orders.list.'''
 
-        ''' Removes orders that could not be allocated from orders.allocation_retry_needed
-            and readds them to orders.list.'''
-
-        for index, in range(self.allocation_retry_needed):
-                self.list.append(self.allocation_retry_needed.pop(index))
+        self.list = self.allocation_retry_needed
+        self.allocation_retry_needed = []
 
 
 

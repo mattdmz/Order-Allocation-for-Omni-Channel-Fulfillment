@@ -14,15 +14,6 @@ OUTPUT_DIR = "C:/Users/demetz/Documents/Masterarbeit/MA_Daten/MA_Daten_Output"
 
 # ____________________________________________________________________________________________
 
-# File names
-
-ALLOCATIONS_FILE_NAME = "allocation_results"
-PROCESSED_ORDERS_FILE_NAME = "processed_orders"
-PROCESSED_SALES_FILE_NAME = "processed_sales"
-RESULTS_FILE_NAME = "results_time_simulation"
-
-# ____________________________________________________________________________________________
-
 # Formats
 
 DECIMAL_FORMAT = ","

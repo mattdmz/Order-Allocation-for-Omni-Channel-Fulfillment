@@ -28,13 +28,13 @@ class ImportModelDataError(Exception):
         super().__init__(self.msg)
 
 
-class InitDistNtwError(Exception):
+class InitStockError(Exception):
     
     '''Raised when model could not be initialized.'''
     
     def __init__(self, err_name:str, err:Error)-> None:
         
-        self.mid_level_err_name = InitDistNtwError.__name__
+        self.mid_level_err_name = InitStockError.__name__
         self.mid_level_error = ": Model could not be initialized with imported data. \n"
         self.low_level_err_name = err_name + ": "
         self.low_level_error = err.args[0] if isinstance(err.args[0], str) else str(err.args[0])

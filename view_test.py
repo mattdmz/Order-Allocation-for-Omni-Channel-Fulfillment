@@ -81,4 +81,4 @@ def test(view_to_test:object):
 
 if __name__ == "__main__":
 
-    test(Transactions_on_Day)
+    test(Articles_Sold_Online)

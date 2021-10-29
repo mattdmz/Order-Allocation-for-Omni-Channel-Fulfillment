@@ -11,12 +11,16 @@ from datetime import datetime
 from numpy import array, full, float32
 
 from allocation.constants import *
+from allocation.evaluation import Evaluation_Model
 from database.constants import NODE_TYPE
-from dstrbntw.constants import ACCEPTING_ORDERS, PROC_TIME
+from dstrbntw.constants import ACCEPTING_ORDERS
 from dstrbntw.region import Region
+from dstrbntw.delivery import Delivery
 from parameters import MAX_WORKING_TIME
+from protocols.constants import ALLOC_ARR, ALLOCATION_DATETIME, ITER, OBJ_VALUE, PUNCTUALITY, REGION_ID
 from transactions.orders import Order
 from transactions.sales import Sale
+from utilities.datetime import processing_day
 
 class Allocator:
 
@@ -37,7 +41,8 @@ class Allocator:
         self.orders = region.orders
         self.sales = region.sales
         self.stock = region.stock
-        self.evaluation_model = region.evaluation_model
+        self.evaluation_model = Evaluation_Model(self.sales, self.orders, self.stock.current_level, self.stock.reserved, self.stock.holding_rates, \
+                                                    self.nodes.tour_rates, self.nodes.route_rates)
 
         # init allocation attribute
         self.allocation = None
@@ -61,6 +66,8 @@ class Allocator:
         availability = True
         
         for line in order.lines:
+            line:Order.Line
+            
             availability = self.stock.availability(line.article.index, node_index, line.quantity, self.current_time, self.cut_off_time)
             if not availability:
                 break
@@ -72,6 +79,8 @@ class Allocator:
         '''Reserves the amoutn of stock demanded in order.'''
 
         for line in order.lines:
+            line:Order.Line
+            
             self.stock.reserve(line.article.index, node_index, line.quantity)
 
     def add_stock(self, order:Order, node_index:int):
@@ -79,22 +88,34 @@ class Allocator:
         '''Adds amount of article demanded in order to stock.'''
         
         for line in order.lines:
+            line:Order.Line
+            
             self.stock.add(line.article.index, node_index, line.quantity)
 
-    def sell(self, sale:Sale) -> None:
+    def sell(self, sale:Sale) -> float:
 
-        '''Returns revenue for each article of sale if stock is available and lines closed.'''
+        ''' Sets True or False if each saleline of the saleline can be closed or not 
+            depending if stock is available to satisfy the demanded quantity of each saleline.
+            If stock is available, the demanded quantity is consumed and the realized revenue 
+            is collected for each saleline.'''
+
+        revenue = 0
 
         # check if there is enough stock available
         for line in sale.lines:
+            line:Sale.Line
+            
             if self.stock.processability(line.article.index, sale.node.index, line.quantity):
                 
-                #consume demanded stock
+                # consume demanded stock
                 self.stock.consume(line.article.index, sale.node.index, line.quantity)
 
                 # collect revenue from saleline
                 line.closed = True
+                revenue += line.article.price * line.quantity
 
+        return revenue
+            
     def node_available(self, node_index:int) -> bool:
 
         '''Returns True or False depending if the node is currently accepting orders.'''
@@ -102,7 +123,7 @@ class Allocator:
         # check if node is currently accepting orders
         return self.nodes.__getattr__(ACCEPTING_ORDERS, index=node_index)
 
-    def order_deliverable(self, order:Order, node_index:int) -> object:
+    def order_deliverable(self, order:Order, node_index:int) -> Delivery:
         
         ''' Adds an order to the duration matrix of the node's delivery tour. 
             Apporximates tour duration.
@@ -110,65 +131,92 @@ class Allocator:
             Returns a prototype tour if the order is deliverable. Else returns None.'''
 
         # check availablity of delivery capacities. Copy current tour and prototype routes after having added the new order.
-        tour = self.nodes.__getattr__(TOUR, index=node_index)
-        prototype_tour = deepcopy(tour)
-        prototype_tour.approximate_routes(prototype_tour.add_order(order))
+        delivery = self.nodes.__getattr__(DELIVERY, index=node_index) #type: Delivery
+        prototype_delivery = deepcopy(delivery)
+        prototype_delivery.approximate_routes(prototype_delivery.add_order(order))
 
         # schedule tour and its order processing
-        prototype_tour.schedule_batches()
+        prototype_delivery.schedule_batches(processing_day(self.current_time, self.cut_off_time))
 
         # check if tour start after current_time to assure allocatability
-        order_deliverable = prototype_tour.on_time(self.current_time)
+        order_deliverable = prototype_delivery.on_time(self.current_time)
 
-        return prototype_tour if order_deliverable else None
+        return prototype_delivery if order_deliverable else None
 
-    def prepare_evaluation(self) -> None:
+    def allocatable(self, order:Order, node_index:int) -> int:
+            
+        ''' Returns 1 if an order is allocatable at the examined node.
+            Else returns feedback on why the order was not allocatable at the examined node.
+                -100 --> node not available
+                -10  --> stock not available
+                -1   --> delivery restrictions not met'''
 
-        '''Provides evaluation model with all allocation based infos to evaluate allocation.'''
+            # check if node can currently recieve orders
+        if self.node_available(node_index):
+            
+            if self.stock_available(order, node_index):
 
-        self.evaluation_model.supply.replace_rates(array(self.orders.allocation_based_supply_rates))
-        self.evaluation_model.order_processing.replace_rates(array(self.orders.allocation_based_processing_rates))
-        self.evaluation_model.tours.replace_durations(array(self.nodes.tour_durations))
+                # check order deliverability (vehicle volume restrictions, scheduling of order proc and delivery restrictions)
+                delivery = self.order_deliverable(order, node_index)
 
+                if delivery is not None:
+                    
+                    # replace delivery
+                    setattr(self.nodes.__get__(index=node_index), DELIVERY, delivery)
+                
+                    return 1 
+                else:
+                    # delivery restrictions not met
+                    return -1
+
+            else:
+                # stock not available
+                return -10
+
+        else:
+            # node not available
+            return -100
+            
     def allocate(self, order:Order, node_index:int) -> None:
 
         '''Allocates order to node.'''
 
-        order.allocation = self.nodes.__get__(index=node_index)
+        order.allocated_node = self.nodes.__get__(index=node_index)
+        order.allocation_time = self.current_time
 
         # reduce available stock
         self.reserve_stock(order, node_index)
 
         # reduce available delivery tour capacity and reschedule delivery batches
-        tour = self.nodes.__getattr__(TOUR, index=node_index)
+        delivery = self.nodes.__getattr__(DELIVERY, index=node_index) #type: Delivery
         
         # builde routes if there is more than 1 order to deliver
-        if len(tour.orders_to_deliver) > 1:
+        if len(delivery.orders_to_deliver) > 1:
             
             #build routes
-            tour.build_routes(time_capacity_per_tour=MAX_WORKING_TIME[self.nodes.__getattr__(NODE_TYPE, index=node_index)])
+            delivery.build_routes(time_capacity_per_tour=MAX_WORKING_TIME[order.allocated_node.node_type])
         
             # schedule tour and its order processing
-            tour.schedule_batches()
+            delivery.schedule_batches(processing_day(self.current_time, self.cut_off_time))
 
-    def punctuality(self) -> float:
+    def prepare_evaluation(self) -> None:
 
-        ''' Returns the number of orders that will be deliverd same-day.
-            Same-day == the the day the order arrives, if cut_off_time is not yet reached, 
-            else same-day == the day the order arrives + 1, if the order arrives after cut_off_time.'''
-                           
-        return sum(self.orders.delivered_sameday(self.current_time, self.cut_off_time)) / len(self.orders.list)
+        ''' Provides allocation based informations to the evaluation model´.
+            Methode must be called before evaluating an allocation'''
+
+        self.evaluation_model.prepare(self.orders.allocation_based_supply_costs(), self.orders.allocation_based_processing_costs(), \
+                                self.stock.demanded(self.orders.list), self.nodes.tour_durations, self.sales.revenue)
 
     def evaluate(self, allocation:array, iter:int=1) -> dict:
 
         '''Returns a dict containing the evaluation of the allocation.'''
 
-        return {PROC_TIME: self.current_time,
-                REGION_ID: self.region_id,
-                ITER: iter, 
-                OBJ_VALUE: self.evaluation_model.objective_function(allocation),
-                PUNCTUALITY: self.punctuality(),
-                ALLOC_ARR: allocation
+        return {    ALLOCATION_DATETIME: self.current_time,
+                    REGION_ID: self.region_id,
+                    ITER: iter,
+                    OBJ_VALUE: self.evaluation_model.objective_function(allocation),
+                    PUNCTUALITY: self.evaluation_model.punctuality(self.current_time, self.cut_off_time),
+                    ALLOC_ARR: allocation
                 }
 
     def store_allocation(self, evaluated_allocation:array) -> None:

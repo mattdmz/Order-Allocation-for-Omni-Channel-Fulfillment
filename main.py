@@ -12,60 +12,47 @@ def main() -> None:
     
     from dstrbntw.abcanalysis import AbcAnalysisError
     from dstrbntw.dstrbntw import Distribution_Network
-    from dstrbntw.errors import ImportModelDataError, InitDistNtwError
-
-    distribution_network = Distribution_Network()
+    from dstrbntw.errors import ImportModelDataError, InitStockError
+    from dstrbntw.simulation import Simulation
+    from protocols.results import Result_Protocols
 
     try:
-        distribution_network.imp_data()
-
-    except ImportModelDataError as err:
-        print(err)
+        result_protocols = Result_Protocols()
+    
+    except OSError as err:
+        print(err)       
 
     else:
-
-        try: 
-            distribution_network.determine_demand()
-            distribution_network.init_stock()
         
-        except InitDistNtwError as err:
+        distribution_network = Distribution_Network()
+
+        try:
+            distribution_network.imp_regional_data()
+
+        except ImportModelDataError as err:
             print(err)
 
-        except AbcAnalysisError as err:
-            print(err)
-        
         else:
-            # allocate and process orders and handle sales
-            distribution_network.init_evaluation_model()
-            distribution_network.init_protocols_and_export_files()
-            distribution_network.start_timesim()
 
-            try:
-                distribution_network.export_results()
-            
-            except OSError as err:
+            try: 
+                distribution_network.determine_demand()
+                distribution_network.init_stock()
+
+            except InitStockError as err:
                 print(err)
+
+            except AbcAnalysisError as err:
+                print(err)
+            
+            else:
+
+                result_protocols.init_results_dict(distribution_network.regions.keys())
+                
+                simulation = Simulation(distribution_network, result_protocols)
+                simulation.create_allocation_schedule()
+                simulation.start()
+                simulation.export_overall_results()
 
 if __name__ == "__main__":
     
     main()
-
-
-        
-
-        
-
-        
-
-
-
-
-
-
-
-
-
-
-
-
-

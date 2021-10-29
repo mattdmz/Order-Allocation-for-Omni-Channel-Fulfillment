@@ -9,8 +9,7 @@ from datetime import datetime
 from math import ceil
 from numpy import array
 
-from parameters import CUT_OFF_TIME
-from utilities.timesim import time_diff
+from utilities.datetime import time_diff
 
 class Demand():
 

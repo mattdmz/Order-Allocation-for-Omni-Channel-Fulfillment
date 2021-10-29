@@ -7,14 +7,15 @@
 
 from datetime import datetime
 from math import ceil, sqrt
-from numpy import array, copy, empty, sum, where
+from numpy import array, copy, empty, sum, where, zeros
 from numpy.random import randint
 from scipy.stats import norm
 
 from dstrbntw.constants import *
 from dstrbntw.demand import Demand
-from parameters import PLANED_STOCK_DURATION, RPL_CYCLE_DURATION, STOCK_BETA_SERVICE_DEGREE, STOCK_SEED, SUBTRACT_EXPECTED_STOCK_DEMAND
+from parameters import FIX_LEVEL, PLANED_STOCK_DURATION, RPL_CYCLE_DURATION, STOCK_BETA_SERVICE_DEGREE, STOCK_SEED, SUBTRACT_EXPECTED_STOCK_DEMAND
 from utilities.expdata import write_numpy_array
+from transactions.orders import Order
 
 class Stock():
 
@@ -40,6 +41,7 @@ class Stock():
     def holding_costs(self) -> float:
 
         '''Returns stock holding costs for 1 day for all nodes of the region.'''
+
         return sum(sum(self.current_level, axis=0) * self.holding_rates)
 
     def calc_reorder_level(self, avg_daily_demand:float, variance_demand:float, ppf:float) -> int:
@@ -106,7 +108,7 @@ class Stock():
         '''Reserves stock of a certain article at a certain node by the quantity.'''
 
         self.reserved[article_index, node_index] += quantity   
-    
+
     def processability(self, article_index:int, node_index:int, quantity_demanded:int) -> bool:
 
         ''' Returns True if current stock is actually available, else returns False.'''
@@ -124,6 +126,40 @@ class Stock():
         ''' Reduces stock of a certain article at a certain node by the quantity ordered.'''
 
         self.current_level[article_index, node_index] -= quantity
+
+    def demanded(self, orders:list) -> array:
+
+        ''' Returns a 1D array with the quantity of stock demanded at the allocated nodes.'''
+
+        stock_demanded = zeros(shape=(self.current_level.shape[0], self.current_level.shape[1]))
+
+        for order in orders:
+            order:Order
+
+            if order.allocated_node != None:
+
+                for line in order.lines:
+                    line:Order.Line
+
+                    stock_demanded[line.article.index, order.allocated_node.index] = line.quantity
+
+        return stock_demanded
+
+    def held_for_order(self, order:Order) -> array:
+
+        ''' Returns a 1D array with the quantity of stock demanded at the allocated nodes.'''
+
+        stock_held_for_order = zeros(shape=(len(self.current_level[1])))
+
+        for line in order.lines:
+            line:Order.Line
+
+            for node_index in range(0, self.current_level.shape[1]):
+                node_index:int
+
+                stock_held_for_order[node_index] += self.current_level[line.article.index, node_index]
+
+        return stock_held_for_order
 
     def add(self, article_index:int, node_index:int, quantity:int)-> None:
 

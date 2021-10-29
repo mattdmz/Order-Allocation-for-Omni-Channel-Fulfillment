@@ -6,173 +6,87 @@
 ###############################################################################################
 
 
+from datetime import datetime
 from numpy import array, sum
+from typing import Union
 
+from allocation.constants import TOUR_DURATIONS, TOUR_RATES
+from transactions.orders import Orders
+from transactions.sales import Sales
 
-class Orders:
-
-    def __init__(self) -> None:
-        
-        pass
-
-    def init_array(self, new_orders:list, attr:str) -> array:
-
-        arr = []
-
-        for index, order in enumerate(new_orders):
-            arr[index] = getattr(order, attr)
-
-        return array(arr)
-
-    def set_possible_revenue(self, possible_revenue:array) -> None:
-
-        '''Sets possible revenues from orders.'''
-
-        self.possible_revenue = possible_revenue
-
-class Supply:
-
-    def __init__(self) -> None:
-        pass
-
-    def set_volumes(self, volumes:array) -> None:
-
-        '''Sets volume per order to supply to each delivering node.'''
-
-        self.volumes = volumes
-
-    def replace_rates(self, rates:array) -> None:
-
-        '''Replaces all allocation based supply_rates.'''
-
-        self.rates = rates
-
-    def rate_improvement(self, order_index:int, allocation_based_rate:float) -> None:
-
-        ''' Returns improvement as delta between new allocation based rate and current rate.
-            A positive return value means the rate descreased and viceversa.'''
-
-        return allocation_based_rate - self.rates[order_index]
-
-    def update_rate(self, order_index:int, allocation_based_rate:float) -> None:
-
-        ''' Updates rate with allocation based order processing rate.
-            Returns improvement as delta between new allocation based rate and current rate.
-            A positive return value means the rate descreased and viceversa.'''
-
-        improvement = allocation_based_rate - self.rates[order_index]
-        self.rates[order_index] = allocation_based_rate
-
-        return improvement
-
-class Stock:
-
-    def __init__(self, current_level:array, reserved:array, holding_rates:array) -> None:
-
-        '''Store current_level and holding_rates.'''
-
-        self.current_level = current_level
-        self.reserved = reserved
-        self.holding_rates = holding_rates
-
-    def rate_improvement(self, node_index:int, allocation_based_rate:float) -> None:
-
-        ''' Returns improvement as delta between new allocation based rate and current rate.
-            A positive return value means the rate descreased and viceversa.'''
-
-        return sum(allocation_based_rate - self.holding_rates[node_index])
-
-class Order_Processing:
-
-    def __init__(self) -> None:
-        pass
-
-    def set_orderlines(self, orderlines:array) -> None:
-
-        '''Sets orderlines per order to process to each delivering node.'''
-
-        self.orderlines = orderlines
-
-    def replace_rates(self, rates:array) -> None:
-
-        '''Replaces all allocation based orer processing rates.'''
-
-        self.rates = rates
-
-    def rate_improvement(self, order_index:int, allocation_based_rate:float) -> None:
-
-        ''' Returns improvement as delta between new allocation based rate and current rate.
-            A positive return value means the rate descreased and viceversa.'''
-
-        return allocation_based_rate - self.rates[order_index]
-
-    def update_rate(self, order_index:int, allocation_based_rate:float) -> None:
-
-        '''Updates rate with allocation based order processing rate.'''
-
-        self.rates[order_index] = allocation_based_rate
-
-class Tours:
-
-    def __init__(self, tour_rates:array, route_rates:array) -> None:
-
-        '''Stores tour_rates and route_rates.'''
-
-        self.tour_rates = tour_rates
-        self.route_rates = route_rates
-
-    def replace_durations(self, durations:array) -> None:
-
-        '''Stores tour_rates and route_rates.'''
-
-        self.durations = durations
-
-    def tour_rate_improvement(self, node_index:int, allocation_based_rate:float) -> None:
-
-        ''' Returns improvement as delta between new allocation based tour rate and current tour rate.
-            A positive return value means the tour rate descreased and viceversa.'''
-
-        return (allocation_based_rate - self.tour_rates[node_index]) * (self.durations[node_index] > 0)
-
-    def route_rate_improvement(self, node_index:int, allocation_based_rate:float) -> None:
-
-        ''' Returns improvement as delta between new allocation based route rate and current route rate.
-            A positive return value means the route rate descreased and viceversa.'''
-
-        return allocation_based_rate - self.route_rates[node_index]
-
-    def duration_improvement(self, node_index:int, duration:float) -> None:
-
-        ''' Returns improvement as delta between new allocation based delivery tour duration and current delivery tour duration.
-            A positive return value means the duration of the delivery tour descreased and viceversa.'''
-
-        return duration - self.durations[node_index]
-
-    def update_duration(self, node_index:int, duration:int) -> None:
-
-        '''Updates tour durations.'''
-
-        self.durations[node_index] = duration
 
 class Evaluation_Model:
 
-    def __init__(self, current_level:array, reserved:array, holding_rates:array, tour_rates:array, route_rates:array) -> None:
+    def __init__(self, sales:Sales, orders:Orders, current_stock_levels:array, reserved_stock:array, stock_holding_rates:array, tour_rates:list, route_rates:list) -> None:
 
-        '''Inits a evaluation model.'''
+        ''' Inits a model to evaluate allocations.
+            In order to return correct results, the evaluation model method prepare must be run 
+            before calculting the objective function of an allocation or calculating punctuality.'''
+
+        # sales
+        self.potential_offline_revenue = array(sales.potential_revenue)
+        self.offline_revenue = None
+
+        # orders info
+        self.orders_list = orders.list
+        self.potential_online_revenue = array(orders.potential_revenue)
+        self.supply_costs = None
+        self.processing_costs = None
         
-        #add model attributes
-        self.orders = Orders()
-        self.supply = Supply()
-        self.stock = Stock(current_level, reserved, holding_rates)
-        self.order_processing = Order_Processing()
-        self.tours = Tours(tour_rates, route_rates)
+        # stock info
+        self.current_stock = current_stock_levels
+        self.reserved_stock = reserved_stock
+        self.stock_holding_rates = stock_holding_rates
+        self.demanded_stock = None
+
+        # delivery info
+        self.tour_rates = array(tour_rates)
+        self.route_rates = array(route_rates)
+        self.delivery_durations = None
+
+        # helper funciton for determining punctuality
+        self.delivered_sameday_func = orders.delivered_sameday
+        
+
+    def update(self, attr:str, index:int, new_value:Union[int, float]):
+
+        '''Updates the array of the passed attribute at the index position.'''
+
+        getattr(self, attr)[index] = new_value
+
+    def improvement(self, attr:str, index:int, new_value:Union[int, float]) -> None:
+
+        ''' Returns improvement as delta between new allocation based value and current value at position index.
+            A positive return value means the value descreased and viceversa.'''
+
+        return new_value - getattr(self, attr)[index] if attr != TOUR_RATES else new_value - getattr(self, attr)[index] * (getattr(self, TOUR_DURATIONS)[index]> 0)
+
+    def prepare(self, supply_costs:list, processing_costs:list, demanded_stock:array, tour_durations:list, offline_revenue:float) -> None:
+
+        '''Provides evaluation model with all allocation based infos to evaluate allocation.'''
+
+        self.supply_costs = array(supply_costs)
+        self.order_processing_costs = array(processing_costs)
+        self.demanded_stock = demanded_stock
+        self.tour_durations = array(tour_durations)
+        self.offline_revenue = offline_revenue
 
     def objective_function(self, allocation:array) -> float:
 
         '''Evaluates an allocation and returns its objective value.'''
 
-        return    sum(self.orders.possible_revenue * (allocation > -1)) \
-                - sum(self.supply.volumes * self.supply.rates * (allocation > 1)) \
-                - sum(self.order_processing.orderlines * self.order_processing.rates * (allocation > -1)) \
-                - sum(sum(self.stock.current_level - self.stock.reserved, axis=0) * self.stock.holding_rates) \
-                - sum(self.tours.durations * self.tours.route_rates) + sum(self.tours.tour_rates * (self.tours.durations > 0))
+        return      self.offline_revenue \
+                +   sum(self.potential_online_revenue * (allocation > -1)) \
+                -   sum((sum((self.current_stock - self.reserved_stock) * (self.demanded_stock > 0)  - self.demanded_stock, axis=0) * self.stock_holding_rates)) \
+                -   sum(self.supply_costs * (allocation > -1)) \
+                -   sum(self.order_processing_costs * (allocation > -1)) \
+                -   sum(self.tour_rates * (self.tour_durations > 0)) \
+                -   sum(self.route_rates * self.tour_durations) \
+
+    def punctuality(self, current_time:datetime, cut_off_time:datetime) -> float:
+
+        ''' Returns the number of orders that will be deliverd same-day.
+            Same-day == the the day the order arrives, if cut_off_time is not yet reached, 
+            else same-day == the day the order arrives + 1, if the order arrives after cut_off_time.'''
+                        
+        return sum(self.delivered_sameday_func(current_time, cut_off_time)) / len(self.orders_list)

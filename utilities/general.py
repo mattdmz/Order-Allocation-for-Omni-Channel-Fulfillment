@@ -22,6 +22,9 @@ def create_obj_dict(data:list, obj:object, key:str=ID, imp_dict:dict=None) -> di
 
         #convert data to instance of object and add to dictionary with its id as key
         for index, row in enumerate(data):
+            index:int
+            row:list
+
             if imp_dict == None:
                 new_entry = obj(index, row)
             else:
@@ -43,21 +46,19 @@ def create_obj_list(data:list, obj:object, dict:dict) -> list:
     #convert data to instance of object and append to list
     if data is not None:
         for row in data:
+            row:list
+            
             list.append(obj(row, dict))
 
     return list   
 
-def fill_nan_in_df_with_0s(df:DataFrame)-> DataFrame:
+def fill_nan_in_df_with_zeros(df:DataFrame)-> DataFrame:
 
     '''Returns a DataFrame with nan replaced with 0s.'''
 
     df.fillna(0, inplace=True)
 
     return df
-
-
-
-
 
     
         

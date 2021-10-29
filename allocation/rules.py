@@ -16,9 +16,9 @@ from allocation.constants import RULE_BASED
 from dstrbntw.location import distance
 from dstrbntw.nodes import Node
 from dstrbntw.region import Region
-from parameters import ORDER_PROCESSING_START, OP_END, RPL_CYCLE_DURATION
+from parameters import ORDER_PROCESSING_START, OP_END_TIME, RPL_CYCLE_DURATION
 from transactions.orders import Order
-from utilities.timesim import time_diff
+from utilities.datetime import time_diff
 
 
 class Nearest_Nodes(Rule):
@@ -42,6 +42,9 @@ class Nearest_Nodes(Rule):
         distances = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
         for i, node in enumerate(self.nodes.dict.values()):
+            i:int
+            node:Node
+
             indexes[i] = node.index
             distances[i] = distance(node.location, order.customer.location)
         
@@ -65,12 +68,14 @@ class Nearest_Already_Allocated_Nodes(Rule):
         ''' Returns an numpy array with all node indexes
             in ascending order based on the distance to the other already allocated order's delivery location.'''
 
-        nodes_allocated_to  = (order.allocation for order in self.orders.allocated)
+        nodes_allocated_to  = (order.allocated_node for order in self.orders.allocated)
 
         indexes = not_allocated_indexes = []
         distances = not_allocated_distances = []
 
-        for i, node in enumerate(self.nodes.dict.values()):
+        for node in self.nodes.dict.values():
+            node:Node
+
             if node in nodes_allocated_to:
                 indexes.append(order.allocation.index)
                 distances.append(distance(order.customer.location, node.location))
@@ -108,6 +113,9 @@ class Smallest_Demand_Variance(Rule):
         variances = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
         for i, node in enumerate(self.nodes.dict.values()):
+            i:int
+            node:Node
+
             indexes[i] = node.index
             variances[i] = operator(self.demand.__getattr__("var", line.article.index, node.index) for line in order.lines)
 
@@ -136,6 +144,9 @@ class Smallest_Stock_Duration(Rule):
         stock_duration = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
         for i, node in enumerate(self.nodes.dict.values()):
+            i:int
+            node:Node
+
             indexes[i] = node.index
             stock_duration[i] = operator((self.stock.current_level[line.article.index, node.index] 
                                         - self.demand.__getattr__("avg", line.article.index, node.index)) for line in order.lines)
@@ -160,7 +171,7 @@ class Dynamic_1(Rule):
         
         shops_open = datetime.combine(self.current_time.date(), time(8, 0, 0))
         full_days_to_next_replenishment =  (RPL_CYCLE_DURATION - ((self.current_time.date() - ORDER_PROCESSING_START).days % RPL_CYCLE_DURATION) - 1)
-        opening_minutes = time_diff(shops_open, OP_END[node_type])
+        opening_minutes = time_diff(shops_open, OP_END_TIME[node_type])
         remaining_time_current_day = time_diff(shops_open, self.current_time)
 
         return (full_days_to_next_replenishment * opening_minutes + remaining_time_current_day) / opening_minutes
@@ -184,7 +195,8 @@ class Dynamic_1(Rule):
         days_until_replenishment = self.expected_stock_level_at_end_of_rpm_cyle(node.node_type)
 
         for line in order.lines:
-            
+            line:Order.Line
+
             # calculate cumulative distribution function for the expected stock at the end of the replenishment cycle
             cdf = norm.cdf(self.expected_stock_level_at_end_of_rpm_cyle(line.article.index, node.index, days_until_replenishment))
 
@@ -204,6 +216,9 @@ class Dynamic_1(Rule):
         marginal_costs = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
         for i, node in enumerate(self.nodes.dict.values()):
+            i:int
+            node:Node
+            
             indexes[i] = node.index
             marginal_costs[i] = self.marg_holding_backorder_cost(order, node, operator)
         

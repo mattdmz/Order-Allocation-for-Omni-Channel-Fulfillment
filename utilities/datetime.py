@@ -42,3 +42,10 @@ def time_diff(t1:datetime, t2:datetime) -> int:
     '''Returns the difference in minutes between two timestamps.'''
 
     return int(abs(t1 - t2).total_seconds() / 60)
+
+def processing_day(current_time:datetime, cut_off_time:datetime) -> date:
+
+    ''' Returns the day the order is processed. If cut off time is not reached yet, 
+        the current date is returned, else current date + 1 day is returned.'''
+
+    return current_time.date() if current_time <= cut_off_time else (current_time + timedelta(days=1)).date()

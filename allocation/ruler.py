@@ -9,9 +9,10 @@
 from datetime import datetime
 from numpy import append, argsort, array
 from statistics import median
+from typing import Tuple
 
 from allocation.allocator import Allocator
-from database.constants import DATE_TIME, TOUR
+from database.constants import DATE_TIME
 from dstrbntw.region import Region
 from transactions.sales import Sale
 from transactions.orders import Order
@@ -30,7 +31,7 @@ class Rule(Allocator):
 
         super().__init__(region, current_time, cut_off_time)
 
-        # store alloc function of child class
+        # store alloc operator of child class
         self.operator = operator
 
         # store main method of child class
@@ -39,7 +40,8 @@ class Rule(Allocator):
         # get a created a list of order and sale ids based on its date_time
         self.chron_trnsct_list = self.create_chron_trnsct_list()
 
-        allocation = self.allocate_rule_based()
+        allocation, revenue = self.allocate_rule_based()
+        self.sales.store_realized_revenue(revenue)
         self.prepare_evaluation()
         self.store_allocation(self.evaluate(allocation))
 
@@ -91,32 +93,29 @@ class Rule(Allocator):
             Returns the node_index if allocation was successfull, else it returns -1
             Replaces delivery tour if allocation was successfull.'''
 
+        bestfeedback = -1000
+
         # get a ranking of node indexes based on the ALLOC_METHOD and ALLOC_FUNC defined in the parameters.
         ranked_nodes = getattr(self, self.operator)(order)
 
         # try to allocate order. Start with node index ranked 1st.
         for node_index in ranked_nodes:
+            node_index:int
+
+            feedback = self.allocatable(order, node_index)
+
+            if feedback > 0:
+
+                # order allocatable
+                return node_index
             
-            # check if node can currently recieve orders
-            if self.node_available(node_index):
-                
-                if self.stock_available(order, node_index):
+            elif feedback > bestfeedback:
+                best_feedback = feedback
+            
+        # return the best feedback
+        return best_feedback
 
-                    # check order deliverability (vehicle volume restrictions, scheduling of order proc and delivery restrictions)
-                    tour = self.order_deliverable(order, node_index)
-
-                    if tour is not None:
-                        
-                        # replace tour
-                        setattr(self.nodes.__get__(index=node_index), TOUR, tour)
-                    
-                        return node_index 
-                    else: 
-                        return -1
-        
-        return -10
-
-    def allocate_rule_based(self) -> array:
+    def allocate_rule_based(self) -> Tuple[array, float]:
 
         ''' Tries to close all sales and collects their revenue.
             Assigns orders based on the rule set in parameters.'''
@@ -124,22 +123,28 @@ class Rule(Allocator):
         # init index to store the node_id for the order allocation
         index = 0
         allocation =  self.init_allocation_array()
+        revenue = 0
 
         # transactions (sales, orders) must be handled follwinging the order of their occurrence in time
         for trnsct in self.chron_trnsct_list:
 
             # handle sales and allocate order sbased on rule
             if isinstance(trnsct, Sale):
+                
                 # get the sale from the list, try to close the sale, collect the revenue and protocol lines which could not be closed
-                self.sell(trnsct)
+                revenue += self.sell(trnsct)
+            
             else: # order
+                
                 # allocate order based on method apply of the rule initialized
                 allocation[index] = self.apply(trnsct)
+                
                 # check if a valid node index was returned for allocation
                 if allocation[index] >= 0:
                     self.allocate(trnsct, allocation[index])
-                index += 1        
 
-        return allocation
+                index += 1     
+
+        return allocation, revenue
 
 
