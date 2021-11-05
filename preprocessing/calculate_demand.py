@@ -11,10 +11,10 @@ from mysql.connector import DatabaseError
 from pandas import DataFrame
 
 from database.connector import Database
-from database.constants import ARTICLE_ID, ZIP_REGION
+from database.constants import ARTICLE_ID, FC, ZIP_REGION
 from database.views import Quantity_Of_Articles_Sold_Online, Quantity_Of_Articles_Sold_Offline, Customer_Info
 from dstrbntw.constants import DEMAND, SUM_DEMAND, VAR_DEMAND
-from parameters import DEMAND_ANALYSIS_START, DEMAND_ANALYSIS_END
+from parameters import DEMAND_ANALYSIS_START, DEMAND_ANALYSIS_END, REGIONAL_DEMAND_GRANULARITY
 from utilities.expdata import write_df
 from utilities.impdata import df_from_file
 
@@ -27,17 +27,20 @@ def demand_per_article_and_node(view:object, start:date, end:date, operator:str)
         #connect to db and get cursor
         with Database() as db:
 
-            zip_regions = Customer_Info(db, column=ZIP_REGION, start=start, end=end).data
+            reg = Customer_Info(db, column=REGIONAL_DEMAND_GRANULARITY, start=start, end=end).data
 
-            df = DataFrame(columns=[ARTICLE_ID, zip_regions])
+            df = DataFrame(columns=[ARTICLE_ID, reg])
 
-            for zip_region in zip_regions:
-                data = view(db, columns=ARTICLE_ID, operator=operator, start=start, end=end, zip_region=zip_region[0]).data
+            for r in reg:
+                if REGIONAL_DEMAND_GRANULARITY == FC:
+                    data = view(db, columns=ARTICLE_ID, operator=operator, start=start, end=end, fc=r[0]).data
+                else: # ZIP_REGION
+                    data = view(db, columns=ARTICLE_ID, operator=operator, start=start, end=end, zip_region=r[0]).data
             
                 #store data
                 if data is not None:
                     for row in data:
-                        df.loc[row[0], zip_region] = row[1]
+                        df.loc[row[0], reg] = row[1]
 
         return df
 
@@ -61,7 +64,7 @@ def merge_demand(operator:str, df_online:DataFrame, df_offline:DataFrame):
                 if operator == "sum":
                     #add the online demand to the offline demand
                     df_offline.loc[article_id, node_id] += df_online.loc[article_id, node_id]
-                else: # max
+                else: # "var" -> use max btw. offline and online
                     df_offline.loc[article_id, node_id] = max(df_online.loc[article_id, node_id], df_offline.loc[article_id, node_id])
             
             except KeyError:
@@ -146,10 +149,10 @@ def determine_online_and_offline_demand(operator:str, start:date=None, end:date=
 
 if __name__ == "__main__":
 
-    # determine_online_and_offline_demand("sum", export=True)
-    # determine_online_and_offline_demand("variance", export=True)
+    determine_online_and_offline_demand("sum", export=True)
+    determine_online_and_offline_demand("var", export=True)
 
-    # overall_demand("sum", SUM_DEMAND, export=True)
+    overall_demand("sum", SUM_DEMAND, export=True)
     overall_demand("var", VAR_DEMAND, export=True)
 
-    # average_demand("avg", export=True)
+    average_demand("avg", export=True)

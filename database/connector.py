@@ -71,7 +71,8 @@ class Database:
             return data
         
         except NoDataError as err:
-            print(err)
+            pass
+            # print(err)
 
         except connector.Error as err:
             #print error and info to its occurrence

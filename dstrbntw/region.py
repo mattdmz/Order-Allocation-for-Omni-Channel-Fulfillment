@@ -6,7 +6,8 @@
 ###############################################################################################
 
 
-from datetime import date, datetime, time, timedelta
+from copy import deepcopy
+from datetime import date, datetime
 from mysql.connector.errors import DatabaseError
 from numpy import array, zeros
 from pandas import DataFrame
@@ -14,7 +15,7 @@ from pandas import DataFrame
 from allocation.constants import RULE_BASED
 from database.connector import Database
 from database.constants import FC, ID, ORDERS, ORDERLINES, SALES, SALELINES
-from database.views import Transactions_on_Day, Lines_of_Transaction
+from database.views import Lines_of_Transaction, Transactions_in_Period
 from dstrbntw.abcanalysis import Abc_Analysis
 from dstrbntw.articles import Article, Articles
 from dstrbntw.constants import *
@@ -23,12 +24,13 @@ from dstrbntw.demand import Demand
 from dstrbntw.errors import InitStockError, ImportTransactionsError
 from dstrbntw.nodes import Node, Nodes
 from dstrbntw.stock import Stock
-from parameters import FIX_LEVEL, LISTING_LIMIT, STOCK_SEED
-from protocols.constants import ALLOC_ARR, ALLOCATION_DATETIME
+from parameters import EXP_INITIAL_STOCK, FIX_LEVEL, LISTING_LIMIT, ORDER_PROCESSING_END, STOCK_SEED
+from protocols.constants import ALLOC_ARR, ALLOCATION_DATETIME, NUMBER_OF_LINES, NUMBER_OF_ORDERS, \
+                                POTENTIAL_OFFLINE_REVENUE, POTENTIAL_ONLINE_REVENUE
 from protocols.results import init_order_evaluation
 from transactions.orders import Order, Orders
 from transactions.sales import Sale, Sales
-from utilities.datetime import processing_day
+from utilities.datetime import delivered_on
 from utilities.general import create_obj_list
 
 
@@ -69,7 +71,7 @@ class Region:
 
         '''Returns a twodimenional np_array of zeros with the shape array(number_of_articles, number_of_nodes).'''
 
-        return zeros(shape=(len(self.articles.dict), len(self.nodes.dict)))
+        return zeros(shape=(len(self.articles.dict), len(self.nodes.dict)), dtype=int)
 
     def determine_demand(self, df:DataFrame) -> array:
 
@@ -84,7 +86,7 @@ class Region:
                 article:Article
 
                 # move value to numpy array and index with arrays
-                arr[article.index, node.index] = df.loc[article.id, str(node.zip_region)]
+                arr[article.index, node.index] = df.loc[article.id, str(node.fc)]
 
         return arr
 
@@ -123,49 +125,53 @@ class Region:
                     article:Article
 
                     # check if article should be added to the assortment of this particular node
-                    if node.abc_analysis_demand.result[article.index] <= LISTING_LIMIT[node.node_type]:
+                    if node.abc_analysis_demand.result[article.index] >= LISTING_LIMIT[node.node_type]:
                         
                         # calculate and set reorder and target level
-                        self.stock.set_calculated_dispo_levels(article.index, node.index, node.abc_analysis_demand.categorize(article.index))
+                        self.stock.set_calculated_dispo_levels(article.index, node.index, node.abc_analysis_demand.categorize(article.index), self)
 
-            self.stock.current_level = self.stock.set_start_level()
+            self.stock.current_level = self.stock.set_start_level(self.id)
 
             if STOCK_SEED == FIX_LEVEL:
-
                 self.stock.target_level = self.stock.set_fix_stock_level()
+
+            if EXP_INITIAL_STOCK:
+                self.stock.export(self.id)
 
         except Exception as err:
 
             # raise customized error message as mid level error and include err as lower level
             raise InitStockError(err.__class__.__name__, err)
 
+    def define_delivery_day(self, current_time:datetime) -> None:
+
+        '''Defines the next days orders will be processed and delivered.'''
+
+        for node in self.nodes.dict.values():
+            node:Node
+            
+            node.delivery.day = delivered_on(current_time, node.node_type)
+
     def imp_orders(self, start:datetime, end:datetime) -> list:
 
         '''Imports input data of orders from database.'''
 
-        #create list of orders
+        # create list of orders
         orders = []
 
         try:
-            #connect to db and get cursor
+            # connect to db and get cursor
             with Database() as db:
 
-                # if day is a monday import also sunday's orders
-                if start.isoweekday() == 1:
-                    
-                    #fetch data and return as list of objects (database to fetch from, view to use, (parameters to apply on view), object to store selected rows in)
-                    data = Transactions_on_Day(db, ORDERS, start.date() - timedelta(days=1), columns="*", start_time=time(0, 0, 1), end_time=time(23, 59, 59), fc=self.id).data
-                    orders = create_obj_list(data, Order, self.customers)
-
-                #fetch data and return as list of objects (database to fetch from, view to use, (parameters to apply on view), object to store selected rows in)
-                data = Transactions_on_Day(db, ORDERS, start.date(), columns="*", start_time=start.time(), end_time=end.time(), fc=self.id).data
+                # fetch data and return as list of objects (database to fetch from, view to use, (parameters to apply on view), object to store selected rows in)
+                data = Transactions_in_Period(db, ORDERS, columns="*", start=start, end=end, fc=self.id).data
                 orders.extend(create_obj_list(data, Order, self.customers))
                 del data
 
                 if orders is None:
                     raise ImportTransactionsError(ORDERS, start, end)
 
-                #for each transaction, import its lines
+                # for each transaction, import its lines
                 for order in orders:
                     order:Order
 
@@ -193,23 +199,16 @@ class Region:
         try:
             #connect to db and get cursor
             with Database() as db:
-
-                # if day is a monday import also sunday's orders
-                if start.isoweekday() == 1:
                     
-                    #fetch data and return as list of objects (database to fetch from, view to use, (parameters to apply on view), object to store selected rows in)
-                    data = Transactions_on_Day(db, SALES, start.date() - timedelta(days=1), columns="*", start_time=time(0, 0, 1), end_time=time(23, 59, 59), fc=self.id).data
-                    sales = create_obj_list(data, Sale, self.nodes)
-            
-                #fetch data and return as list of objects (database to fetch from, view to use, (parameters to apply on view), object to store selected rows in)
-                data = Transactions_on_Day(db, SALES, start.date(), columns="*", start_time=start.time(), end_time=end.time(), fc=self.id).data
-                sales.extend(create_obj_list(data, Sale, self.nodes))
+                # fetch data and return as list of objects (database to fetch from, view to use, (parameters to apply on view), object to store selected rows in)
+                data = Transactions_in_Period(db, SALES, columns="*", start=start, end=end, fc=self.id).data
+                sales = create_obj_list(data, Sale, self.nodes)
                 del data
 
                 if sales is None:
                     raise ImportTransactionsError(SALES, start, end)
 
-                #for each transaction, import its lines
+                # for each transaction, import its lines
                 for sale in sales:
                     sale:Sale
 
@@ -231,17 +230,32 @@ class Region:
 
         '''Imports sales and orders of the last allocation period.'''
 
-        self.orders.list.extend(self.imp_orders(start, end))
-        self.sales.list.extend(self.imp_sales(start, end))
+        orders = Orders()
+        orders.list = self.imp_orders(start, end)
+        
+        sales = Sales()
+        sales.list = self.imp_sales(start, end)
 
-    def start_allocation(self, allocator, current_time:datetime, cut_off_time:datetime, alloc_func) -> dict:
+        self.orders.list.extend(orders.list)
+        self.sales.list.extend(sales.list)
+
+        # evaluate imported transactions for results protocol
+        imported_trsct_eval = { NUMBER_OF_ORDERS: len(orders.list),
+                                POTENTIAL_ONLINE_REVENUE: sum(orders.potential_revenue),
+                                NUMBER_OF_LINES: sales.number_of_lines,
+                                POTENTIAL_OFFLINE_REVENUE: sales.potential_revenue
+        }
+
+        return imported_trsct_eval
+
+    def start_allocation(self, allocator, current_time:datetime, alloc_func) -> dict:
 
         ''' Returns an allocation made with the allocator passed (rule-based allocator or an optimizer).'''
         
         # start allocation with the allocator passed (rule-based allocator or an optimizer)
-        return allocator(self, current_time, cut_off_time, alloc_func).allocation
+        return allocator(self, current_time, alloc_func).allocation
 
-    def determine_not_allocated_orders(self, allocation:dict) -> DataFrame:
+    def determine_not_allocated_orders(self, allocation:dict, current_time:datetime) -> DataFrame:
 
         ''' Returns a DataFrame containing the evaluation of not allocated orders.
             Schedules the allocation retry if the current allocation attempt failed.'''
@@ -252,15 +266,38 @@ class Region:
             node_index:int
             order:Order
 
-            #check if allocation failed
-            if node_index < 0:
+            # check if allocation failed and if there is another day left to retry
+            if (node_index < 0 and order.allocation_retried) or (node_index < 0 and current_time.date() == ORDER_PROCESSING_END):
+
+                # protocol allocation failure reason
+                order.failure = node_index
                 
-                order_evaluation = order.protocol(self.id, allocation[ALLOCATION_DATETIME], failure=node_index)
+                # allocation retried and failed, protocol order as not allocated with the failure reason
+                order_evaluation = order.protocol(self.id, allocation[ALLOCATION_DATETIME])
                 not_allocated_orders_evaluation = not_allocated_orders_evaluation.append(order_evaluation, ignore_index=True)
-                                                                                         
+
+            elif node_index < 0 and not order.allocation_retried:                                                                         
+
+                # set order on allocation retry list
                 self.orders.allocation_retry(order)
 
-        return not_allocated_orders_evaluation if len(not_allocated_orders_evaluation) > 0 else None
+        return not_allocated_orders_evaluation if len(not_allocated_orders_evaluation.index) > 0 else None
+
+    def determine_remainig_orders(self) -> DataFrame:
+
+        ''' Returns a DataFrame containing the evaluation of schueduled orders which were not processed.'''
+
+        remainig_orders_evaluation = DataFrame(columns=init_order_evaluation(0).keys())
+
+        for order in self.orders.list:
+            order:Order
+
+            if order.allocated_node == None:
+                
+                # allocation retried and failed, protocol order as not allocated with the failure reason
+                remaining_orders_evaluation = remaining_orders_evaluation.append(order.protocol(self.id, ""), ignore_index=True)
+
+        return remainig_orders_evaluation if len(remainig_orders_evaluation.index) > 0 else None
 
     def batches_to_process(self, current_time:datetime) -> dict:
 
@@ -272,13 +309,26 @@ class Region:
         for node in self.nodes.dict.values():
             node:Node
 
-            #check if starting time for order processing and delivery for all allocated orders and nodes was reached.
+            # check if starting time for order processing and delivery for all allocated orders and nodes was reached.
             if current_time >= node.delivery.processing_start():
+                
+                # get batch to process
                 batches_to_process[node] = node.delivery.batch_to_process()
+
+                if node.accepting_orders:
+
+                    # declare node as not accepting orders anymore on current day
+                    node.delivery_restarts_tomorrow(current_time)
+                    node.set_order_acceptance_status(False)
+
+                if len(node.delivery.batches) == 0:
+
+                    # reset delivery object as all batches were delivered
+                    node.reset_delivery()
 
         return batches_to_process if batches_to_process != {} else None
 
-    def check_processability(self, batches:dict, processing_day:date) -> None:
+    def check_processability(self, batches:dict, current_time:datetime) -> None:
 
         ''' Stores True or False as order attribute if order is processable or not. 
             Removes order form delivery tour if not processable and reschedule tour
@@ -302,10 +352,15 @@ class Region:
                         # next allocation cycle.
 
                         # remove order from delivery tour
-                        order.allocated_node.delivery.remove_order(order)
+                        if order in batch.orders:
+                            order.allocated_node.delivery.remove_order(order)
 
-                        # reschedule delivery to get the correct delivery times of the new route without the order that could not be processed
-                        order.allocated_node.delivery.schedule_batches(processing_day)
+                            # rebuild delivery routes if there is orders remaining to deliver
+                            if len(order.allocated_node.delivery.orders_to_deliver) > 1:
+                                    order.allocated_node.delivery.build_routes(node_type=order.allocated_node.node_type)
+
+                            # reschedule delivery to get the correct delivery times of the new route without the order that could not be processed
+                            order.allocated_node.delivery.create_batches(delivered_on(current_time, order.allocated_node.node_type))
 
                         # reset allocation
                         order.allocated_node = None
@@ -315,7 +370,7 @@ class Region:
                 
                 order.processable = processable
 
-    def process_batches(self, batches:dict, current_time:datetime, cut_off_time:datetime) -> DataFrame:
+    def process_orders(self, batches:dict, current_time:datetime) -> DataFrame:
 
         '''Processes batches of orders and returns evaluation.'''
 
@@ -326,6 +381,7 @@ class Region:
             
             # compute delivery costs of tour and divide by number of orders to deliver
             delivery_costs = batch.delivery_costs / len(batch.orders)
+            delivery_duration = batch.delivery_duration / len(batch.orders) 
 
             # process orders marked as processable
             for order in batch.orders:
@@ -337,17 +393,18 @@ class Region:
                     for line in order.lines:
                         line:Order.Line
 
-                        stock_holding_costs = sum(self.stock.held_for_order(order) * self.nodes.stock_holding_rates)
                         self.stock.cancel_reservation(line.article.index, order.allocated_node.index, line.quantity)
                         self.stock.consume(line.article.index, order.allocated_node.index, line.quantity)
                     
-                    processing_evaluation = processing_evaluation.append(order.protocol(self.id, current_time, cut_off_time=cut_off_time, \
-                                                                            delivery_costs=delivery_costs, stock_holding_costs=stock_holding_costs), ignore_index=True)
-                                                                            
+                    order_evaluation = order.protocol(self.id, current_time, delivery_costs=delivery_costs, delivery_duration=delivery_duration, \
+                                                      diminuished_stock_value=order.pieces * order.allocated_node.stock_holding_rate)
+                    processing_evaluation = processing_evaluation.append(order_evaluation, ignore_index=True)                                                              
 
         return processing_evaluation
 
-    def process_orders(self, current_time:datetime, cut_off_time:datetime) -> DataFrame:
+    def process_batches(self, current_time:datetime) -> DataFrame:
+
+        '''returns the evaluation of the batches (orders) processed'''
 
         #check if order processing and delivery must be executed
         batches_to_process = self.batches_to_process(current_time)
@@ -355,10 +412,10 @@ class Region:
         if batches_to_process is not None:
             
             # check if stock reserved is still available
-            self.check_processability(batches_to_process, processing_day(current_time, cut_off_time))
+            self.check_processability(batches_to_process, current_time)
 
             # calculate revenue generated from orders and subtract order processing costs
-            return self.process_batches(batches_to_process, current_time, cut_off_time)
+            return self.process_orders(batches_to_process, current_time)
 
         return None
 
@@ -375,26 +432,52 @@ class Region:
 
         alloc_arr_of_ids = []
 
-        for node_index in allocation[ALLOC_ARR]:
+        for order_index, node_index in enumerate(allocation[ALLOC_ARR]):
 
             try:
                 # get the node id if the order's allocation was successful
-                alloc_arr_of_ids.append(self.nodes.__getattr__(ID, index=node_index))
+                alloc_arr_of_ids.append(f'{self.orders.list[order_index].id}: {self.nodes.__getattr__(ID, index=node_index)}')
             
             except KeyError:
                 # set the feedback (negative node_index) the order's allocation was successful
-                alloc_arr_of_ids.append(node_index)
+                alloc_arr_of_ids.append(f'{self.orders.list[order_index].id}: {node_index}')
 
-        allocation[ALLOC_ARR] = alloc_arr_of_ids
+        # prepare exportable dict
+        exportable_alloc = deepcopy(allocation)
+        exportable_alloc[ALLOC_ARR] = alloc_arr_of_ids
 
-        return allocation
+        return exportable_alloc
 
-    def change_order_acceptance_status(self, status:bool)-> None:
+    def change_order_acceptance_status(self, status:bool) -> None:
+
+        '''Sets the order acceptance status of all nodes to the passed status.'''
+
+        for node in self.nodes.dict.values():
+            node:Node
             
-            # stop accepting orders at nodes for this day
-            self.nodes.change_order_acceptance_status(status)
-            
-    def calc_stock_holding_costs(self) -> None:
+            node.set_order_acceptance_status(status)
+
+    def determine_sameday_delivery_for_orders_after_cot(self,  current_time:datetime) -> int:
+
+        ''' Returns the number of same day deliveries (deliverd on current_time + 1 day) 
+            for orders which came in after cut off time.'''
+
+        sameday_deliveries = 0
+
+        for node in self.nodes.dict.values():
+            node:Node
+
+            for batch in node.delivery.batches:
+
+                for order in batch.orders:
+                    order:Order
+
+                    if order.delivered_sameday(current_time):
+                        sameday_deliveries +=1
+
+        return sameday_deliveries
+
+    def calc_stock_holding_costs(self) -> float:
         
         ''' Returns stock holding costs for this day.'''
         

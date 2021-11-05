@@ -5,7 +5,7 @@
 
 ###############################################################################################
 
-
+from datetime import datetime, time
 from mysql.connector.errors import DatabaseError
 
 from database.connector import Database, NoDataError
@@ -15,8 +15,9 @@ from dstrbntw.errors import ImportModelDataError
 from dstrbntw.location import Location
 from dstrbntw.delivery import Delivery
 from database.views import Specific_Nodes
-from utilities.general import create_obj_dict
 from parameters import *
+from utilities.datetime import delivered_on
+from utilities.general import create_obj_dict
 
 
 class Node():
@@ -96,6 +97,12 @@ class Node():
 
         self.accepting_orders = new_status
 
+    def delivery_restarts_tomorrow(self, current_time:datetime) -> None:
+
+        '''Sets node.delivery.day on current date + 1 day.'''
+
+        self.delivery.day = delivered_on(datetime.combine(current_time.date(), time(0, 1, 0)), self.node_type) 
+
     def store_demand_analysis(self, abc_analysis_demand:Abc_Analysis)-> None:
 
         '''Carries out abc analysis of demand at node.'''
@@ -108,6 +115,11 @@ class Node():
 
         return int(round(self.order_processing_capacity * lines_to_process, 0))
 
+    def reset_delivery(self) -> None:
+
+        '''Resets delivery object.'''
+
+        self.delivery = Delivery(self.node_type, self.location)
 
 class Nodes:
 

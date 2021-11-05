@@ -7,6 +7,7 @@
 
 from datetime import date, datetime, timedelta, time
 
+from parameters import CUT_OFF_TIME, NUMBER_OF_WORKDAYS, OP_END_TIME
 from utilities.constants import ADD
 
 
@@ -43,9 +44,26 @@ def time_diff(t1:datetime, t2:datetime) -> int:
 
     return int(abs(t1 - t2).total_seconds() / 60)
 
-def processing_day(current_time:datetime, cut_off_time:datetime) -> date:
+def cut_off_time(current_day:date) -> datetime:
 
-    ''' Returns the day the order is processed. If cut off time is not reached yet, 
+    '''Returns the cut_off_time of the current day in datetime format.'''
+
+    return datetime.combine(current_day, CUT_OFF_TIME)
+
+def delivered_on(current_time:datetime, node_type:int) -> date:
+
+    ''' Returns the day the order is delivered given current_datetime. If cut off time is not reached yet, 
         the current date is returned, else current date + 1 day is returned.'''
 
-    return current_time.date() if current_time <= cut_off_time else (current_time + timedelta(days=1)).date()
+    if current_time <= datetime.combine(current_time.date(), OP_END_TIME[node_type]) and current_time.date().isoweekday() <= NUMBER_OF_WORKDAYS:
+        return current_time.date()
+
+    elif current_time > datetime.combine(current_time.date(), OP_END_TIME[node_type]) and current_time.date().isoweekday() < NUMBER_OF_WORKDAYS: 
+        return (current_time + timedelta(days=1)).date()
+    
+    elif current_time > datetime.combine(current_time.date(), OP_END_TIME[node_type]) and current_time.date().isoweekday() == NUMBER_OF_WORKDAYS: 
+        return (current_time + timedelta(days=7 - NUMBER_OF_WORKDAYS + 1)).date()
+    
+    else: #current_time.date().isoweekday() > NUMBER_OF_WORKDAYS
+        return (current_time + timedelta(days=7 - NUMBER_OF_WORKDAYS)).date()
+

@@ -10,8 +10,8 @@ SELECT * FROM orders    #sales
          WHERE its_date BETWEEN start_date() AND end_date()
          ORDER BY id ASC;
          
-#SET @start_date = "2019-03-01", @end_date = "2019-03-02";
-CREATE OR REPLACE VIEW masterarbeit.orders_in_zip_region AS
+SET @start_date = "2019-03-01", @end_date = "2019-03-02", @zip_region=1001;
+#CREATE OR REPLACE VIEW masterarbeit.orders_in_zip_region AS
 SELECT * FROM orders as o
 		 WHERE o.customer_id IN (SELECT customer_id 
 								 FROM orders as o, customers as c
@@ -20,11 +20,10 @@ SELECT * FROM orders as o
 
 
 #orders on day btw times in fc Region
-SET @start_date = "2019-03-01", @end_date = "2019-03-01"; 
+SET @start_datetime = "2019-03-01 00:00:00", @end_datetime = "2019-03-02 23:59:59"; 
 SELECT *
 FROM orders as o, customers as c
-WHERE o.its_date = start_date() 
-AND (o.its_time >= '00:00' AND o.its_time <= '03:50')
+WHERE cast(o.its_date as datetime) + cast(o.its_time as time) BETWEEN cast("2019-03-01 00:00:00" as datetime) AND cast("2019-03-01 23:59:59" as datetime) #start_datetime() and end_datetime()
 AND o.customer_id = c.id
 AND c.fc = 1001;
 

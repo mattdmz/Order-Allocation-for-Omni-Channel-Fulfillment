@@ -15,7 +15,7 @@ from datetime import datetime
 # CRITICAL: A serious error, indicating that the program itself may be unable to continue running.
 
 
-def create_logger(name:str):
+def create_logger(name:str, dir_path:str):
 
     ''' Returns a logger object with predefinied logging configurations such as the logging level.''' 	
     
@@ -23,7 +23,7 @@ def create_logger(name:str):
     formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(name)s:%(lineno)d:%(funcName)s:%(message)s')
     logger.level = logging.DEBUG
     
-    file_handler = logging.FileHandler ( 'logging/ThesisProject_' + datetime.today().strftime('%Y-%m-%d') + '.log')
+    file_handler = logging.FileHandler ( dir_path + "/logging.log")
     file_handler.setFormatter(formatter)
 
     stream_handler = logging.StreamHandler()

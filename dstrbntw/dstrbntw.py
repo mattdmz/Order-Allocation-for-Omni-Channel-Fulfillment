@@ -5,6 +5,7 @@
 
 ###############################################################################################
 
+from datetime import date
 from mysql.connector.errors import DatabaseError
 from numpy import float32
 
@@ -21,14 +22,14 @@ from utilities.impdata import df_from_file
 
 class Distribution_Network:
 
-    def __init__(self) -> None:
+    def __init__(self, start:date, end:date) -> None:
         
         ''' Inits a distribution network model based which shall be based on  
             the date range delimited by the parameters ORDER_PROCESSING_START and ORDER_PROCESSING_END.'''
 
         # set demand analysis dates
-        self.start = ORDER_PROCESSING_START
-        self.end = ORDER_PROCESSING_END
+        self.start = start
+        self.end = end
 
     def imp_regional_data(self) -> None:
 

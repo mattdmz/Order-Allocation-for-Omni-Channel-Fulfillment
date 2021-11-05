@@ -54,13 +54,62 @@
 # Attempt 2 (this one seems to work, but on closer inspection it duplicates 
 #the last item in the dictionary, because another reference is created to it):
 
-from numpy import array
+# from numpy import array, delete
 
-avg_speed = 0.2
-distances = array([0.124578, 1.124587, 4.21547, 1.12457])
-loading_time_per_order = 0.5
-service_time_per_order = 4
 
-x = (distances/avg_speed) + (loading_time_per_order + service_time_per_order)
+# class deliv:
+#     def __init__(self) -> None:
+#         self.duration_matrix = array([[   0, 1, 2, 3, 4, 5],
+#                                       [   0, 1, 2, 3, 4, 5],
+#                                       [   0, 1, 2, 3, 4, 5],
+#                                       [   0, 1, 2, 3, 4, 5],
+#                                       [   0, 1, 2, 3, 4, 5],
+#                                       [   0, 1, 2, 3, 4, 5]])
+    
+#     def test(self, route:list):
 
-print(x)
+#         y = 0
+
+#         for r in range(len(route) - 1):
+#             x = self.duration_matrix[route[r], route[r+1]] 
+#             print(route[r], " -> ", route[r+1], x)
+#             y += x
+
+#         return int(round(y, 0))
+
+# d = deliv()
+# route = [0, 3, 5, 2, 4, 1, 0]
+
+# print(d.test(route))
+
+# from parameters import STOCK_BETA_SERVICE_DEGREE, RPL_CYCLE_DURATION
+
+# from math import ceil, sqrt
+# from scipy.stats import norm
+
+# def test(abc_category, avg_daily_demand, variance_demand):
+
+#     ppf = norm.ppf(STOCK_BETA_SERVICE_DEGREE[abc_category], loc=0, scale=1)
+#     return int(ceil(10 * avg_daily_demand + ppf * sqrt(RPL_CYCLE_DURATION * variance_demand)))
+
+
+# abc_category = "c"
+# avg_daily_demand = 0.2857 #10.461585
+# variance_demand = 1.072664 #1.76729408
+
+# print(test(abc_category, avg_daily_demand, variance_demand))
+
+class X:
+
+    def __init__(self) -> None:
+        pass
+
+y = X()
+
+l = [X(), X(), X()]
+
+l.append(y)
+
+if y in l:
+    print("true)")
+

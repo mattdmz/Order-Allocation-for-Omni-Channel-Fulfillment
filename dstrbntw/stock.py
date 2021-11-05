@@ -7,15 +7,16 @@
 
 from datetime import datetime
 from math import ceil, sqrt
-from numpy import array, copy, empty, sum, where, zeros
+from numpy import array, copy, empty, sum, where, zeros_like
 from numpy.random import randint
 from scipy.stats import norm
 
 from dstrbntw.constants import *
 from dstrbntw.demand import Demand
 from parameters import FIX_LEVEL, PLANED_STOCK_DURATION, RPL_CYCLE_DURATION, STOCK_BETA_SERVICE_DEGREE, STOCK_SEED, SUBTRACT_EXPECTED_STOCK_DEMAND
-from utilities.expdata import write_numpy_array
 from transactions.orders import Order
+from utilities.expdata import write_numpy_array
+from utilities.impdata import from_csv
 
 class Stock():
 
@@ -67,7 +68,7 @@ class Stock():
         
         return fix_level 
 
-    def set_start_level(self) -> array:
+    def set_start_level(self, region_id:int=None) -> array:
 
         '''Returns an array with start level of stock based for each node based on STOCK_SEED parameter.'''
 
@@ -77,10 +78,13 @@ class Stock():
         elif STOCK_SEED == TARGET_LEVEL:
             return copy(self.target_level)
 
+        elif STOCK_SEED == IMPORTED_LEVEL:
+            return array(from_csv(CURRENT_STOCK_LEVEL + "_" + str(region_id), read_headers=True), dtype=int)
+
         else:
             return self.set_fix_stock_level()
 
-    def set_calculated_dispo_levels(self, article_index:int, node_index:int, abc_category:str) -> None:
+    def set_calculated_dispo_levels(self, article_index:int, node_index:int, abc_category:str, region) -> None:
 
         ''' Calculates and sets reorder and start level stock of each each article to be listed at each node.
             Determines and sets also start level of stock.'''
@@ -89,18 +93,18 @@ class Stock():
         variance_demand = self.demand.var[article_index, node_index]
         ppf = norm.ppf(STOCK_BETA_SERVICE_DEGREE[abc_category], loc=0, scale=1)
         
-        #set stock dispo levels
         self.reorder_level[article_index, node_index] = self.calc_reorder_level(avg_daily_demand, variance_demand, ppf)
-        self.target_level[article_index, node_index] = self.calc_target_level(avg_daily_demand, variance_demand, ppf, abc_category)
+        target_level = self.calc_target_level(avg_daily_demand, variance_demand, ppf, abc_category)
+        self.target_level[article_index, node_index] = target_level if target_level > self.reorder_level[article_index, node_index] else self.reorder_level[article_index, node_index] + 1
 
-    def availability(self, article_index:int, node_index:int, quantity_demanded:int, current_time:datetime, cut_off_time:datetime) -> bool:
+    def availability(self, article_index:int, node_index:int, quantity_demanded:int, current_time:datetime, op_end_time:datetime) -> bool:
 
         ''' Returns True if current stock - reserved stock level allows to serve the quantity_demanded, else returns False.'''
         
         #print("current: ", self.current_level[article_index, node_index], ", reserved: ", self.reserved[article_index, node_index], ", quantity_demanded: ", quantity_demanded)
         
         return     self.current_level[article_index, node_index] - self.reserved[article_index, node_index] \
-                - (self.demand.expected(article_index, node_index, current_time, cut_off_time) if SUBTRACT_EXPECTED_STOCK_DEMAND else 0) \
+                - (self.demand.expected(article_index, node_index, current_time, op_end_time) if SUBTRACT_EXPECTED_STOCK_DEMAND else 0) \
                 -  quantity_demanded >= 0
     
     def reserve(self, article_index:int, node_index:int, quantity:int) -> None:
@@ -131,7 +135,7 @@ class Stock():
 
         ''' Returns a 1D array with the quantity of stock demanded at the allocated nodes.'''
 
-        stock_demanded = zeros(shape=(self.current_level.shape[0], self.current_level.shape[1]))
+        stock_demanded = zeros_like(self.current_level)
 
         for order in orders:
             order:Order
@@ -144,22 +148,6 @@ class Stock():
                     stock_demanded[line.article.index, order.allocated_node.index] = line.quantity
 
         return stock_demanded
-
-    def held_for_order(self, order:Order) -> array:
-
-        ''' Returns a 1D array with the quantity of stock demanded at the allocated nodes.'''
-
-        stock_held_for_order = zeros(shape=(len(self.current_level[1])))
-
-        for line in order.lines:
-            line:Order.Line
-
-            for node_index in range(0, self.current_level.shape[1]):
-                node_index:int
-
-                stock_held_for_order[node_index] += self.current_level[line.article.index, node_index]
-
-        return stock_held_for_order
 
     def add(self, article_index:int, node_index:int, quantity:int)-> None:
 
@@ -176,11 +164,11 @@ class Stock():
 
         return replenishments
 
-    def export(self, node_indexes:list, article_indexes:list)-> None:
+    def export(self, region_id:int)-> None:
 
         ''' Exports stock levels.'''
 
         #exp data
-        write_numpy_array(self.reorder_level, REORDER_STOCK_LEVEL, header=node_indexes, index=article_indexes)
-        write_numpy_array(self.target_level, TARGET_STOCK_LEVEL, header=node_indexes, index=article_indexes)
-        write_numpy_array(self.current_level, CURRENT_STOCK_LEVEL, header=node_indexes, index=article_indexes)
+        write_numpy_array(self.reorder_level, REORDER_STOCK_LEVEL + "_" + str(region_id))
+        write_numpy_array(self.target_level, TARGET_STOCK_LEVEL + "_" + str(region_id))
+        write_numpy_array(self.current_level, CURRENT_STOCK_LEVEL + "_" + str(region_id))

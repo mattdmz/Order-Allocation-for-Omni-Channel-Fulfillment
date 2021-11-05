@@ -5,7 +5,8 @@
 
 ###############################################################################################
 
-from datetime import date, time
+from datetime import date, datetime, time
+from typing import Union
 
 from database.connector import Database
 from database.constants import *
@@ -42,7 +43,7 @@ class Conditions:
 
     '''Joining conditions.'''
 
-    def date_time(date_or_time:str, table_abbr:str, start:date=None, end:date=None):
+    def date_time(date_or_time:str, table_abbr:str, start:Union[date, time]=None, end:Union[date, time]=None):
 
         '''Builds a date/time condition for MySQL queries. returns "" if neither start nor end was provided.'''
 
@@ -52,6 +53,19 @@ class Conditions:
             return f"{table_abbr}.{date_or_time} >= '{start}' "
         elif start is None and end is not None:
             return f"{table_abbr}.{date_or_time} <= '{end}' "
+        else:
+            return ""
+
+    def date_time_cast(table_abbr:str, start:datetime=None, end:datetime=None):
+
+        '''Builds a date/time condition for MySQL queries. returns "" if neither start nor end was provided.'''
+
+        if start is not None and end is not None:
+            return f"cast({table_abbr}.{DATE} as datetime) + cast({table_abbr}.{TIME} as time) BETWEEN cast('{start}' as datetime) AND cast('{end}' as datetime)  "
+        elif start is not None and end is None:
+            return f"cast({table_abbr}.{DATE} as datetime) + cast({table_abbr}.{TIME} as time) >= cast('{start}' as datetime) "
+        elif start is None and end is not None:
+            return f"cast({table_abbr}.{DATE} as datetime) + cast({table_abbr}.{TIME} as time) =< cast('{end}' as datetime) "
         else:
             return ""
 
@@ -110,16 +124,16 @@ class Transactions_in_Period():
 
     ''' View returning transactions from a table.
         Drill downs:
-        - between start and/or ende_date.'''
+        - between start datetime and end datetime.'''
 
-    def __init__(self, db:Database,  table:str, columns:str=None, start:date=None, end:date=None, fc:int=None):
+    def __init__(self, db:Database,  table:str, columns:str=None, start:datetime=None, end:datetime=None, fc:int=None):
 
         #extract
 
         self.name = Transactions_in_Period.__name__
         self.sql = (f"SELECT {table[0]}.{columns if columns is not None else '*'} "
                     f"FROM {table} as {table[0]} {Join.customers(fc) if table == ORDERS else Join.nodes(fc)}"
-                    f"{f'WHERE {Conditions.date_time(DATE, table[0], start=start, end=end)}' if start is not None or end is not None else ''} "
+                    f"WHERE {f'{Conditions.date_time_cast(table[0], start=start, end=end)}' if start is not None or end is not None else ''} "
                     f"{'AND ' if (start is not None or end is not None) and fc is not None else ''}"
                     f"{f'{CUSTOMERS[0] if table == ORDERS else NODES[0]}.{ID} = {table[0]}.{CUSTOMER_ID if table == ORDERS else NODE_ID} ' if fc is not None else ''}"
                     f"{'AND ' if fc is not None else ''}" 

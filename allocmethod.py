@@ -7,8 +7,11 @@
 
 ###############################################################################################
 
-from allocation.rules import Nearest_Nodes, Nearest_Already_Allocated_Nodes, Smallest_Demand_Variance, Longest_Stock_Duration, Dynamic_1
+from allocation.rules import Nearest_Nodes, Nearest_Already_Allocated_Nodes, Allocation_Of_Nearest_Order, Longest_Stock_Duration, Dynamic_1
 from allocation.constants import MIN, MAX, MEDIAN
 
-ALLOC_METHOD = Nearest_Nodes                # choose from allocator.rules
-ALLOC_OPERATOR = MIN                        # choose from allocator.constants
+# choose from allocator.rules
+ALLOC_METHOD = Nearest_Already_Allocated_Nodes
+
+# choose from allocator.constants, relevant for Longest_Stock_Duration
+ALLOC_OPERATOR = MEDIAN                                          

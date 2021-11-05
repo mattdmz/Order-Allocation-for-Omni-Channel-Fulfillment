@@ -5,10 +5,15 @@
 
 ###############################################################################################
 
+from datetime import date
+from parameters import NUMBER_OF_TEST_PERIODS, ORDER_PROCESSING_START, ORDER_PROCESSING_END, TEST_DAYS
 
-def main() -> None:
+def main(start:date=ORDER_PROCESSING_START, end:date=ORDER_PROCESSING_END) -> None:
 
-    '''Main logic.'''
+    ''' Initializes a distribution network mode with imported data.
+        Tries to allocate orders and close sales for each day between start and end
+        between OP_START_TIME and OP_END_TIME.
+        Protocols restuls.'''
     
     from dstrbntw.abcanalysis import AbcAnalysisError
     from dstrbntw.dstrbntw import Distribution_Network
@@ -24,7 +29,7 @@ def main() -> None:
 
     else:
         
-        distribution_network = Distribution_Network()
+        distribution_network = Distribution_Network(start, end)
 
         try:
             distribution_network.imp_regional_data()
@@ -54,5 +59,18 @@ def main() -> None:
                 simulation.export_overall_results()
 
 if __name__ == "__main__":
+
+    if NUMBER_OF_TEST_PERIODS == None:
+
+        # run program with default ORDER_PROCESSING_START and ORDER_PROCESSING_END dates set in parameters
+        main()
     
-    main()
+    else:
+
+        # set list of day tuples (start date, end date) to run the program with
+        days_to_test = [(date(2019, 3, day), date(2019, 3, day-1+TEST_DAYS)) for day in range(1, NUMBER_OF_TEST_PERIODS, TEST_DAYS)]
+
+        # run program for all 
+        for day in days_to_test:
+            main(day[0], day[1])
+

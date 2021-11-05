@@ -11,6 +11,18 @@ CREATE FUNCTION masterarbeit.end_date()
     DETERMINISTIC NO SQL 
     RETURN @end_date;
 
+DROP FUNCTION IF EXISTS masterarbeit.start_datetime;
+CREATE FUNCTION masterarbeit.start_datetime() 
+	RETURNS DATETIME 
+    DETERMINISTIC NO SQL 
+    RETURN @start_datetime;
+    
+DROP FUNCTION IF EXISTS masterarbeit.end_datetime;
+CREATE FUNCTION masterarbeit.end_datetime() 
+	RETURNS DATETIME 
+    DETERMINISTIC NO SQL 
+    RETURN @end_datetime;
+
 DROP FUNCTION IF EXISTS masterarbeit.specific_date;
 CREATE FUNCTION masterarbeit.specific_date() 
 	RETURNS DATE 

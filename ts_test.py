@@ -1,17 +1,15 @@
 
-def objective_function(alloaction) -> int:
+###############################################################################################
 
-    return sum(alloaction)
+'''This file contains the a test instance for the Tabu Search Algorithm.'''
+
+###############################################################################################
 
 from copy import deepcopy
-from numpy import array, exp, flip, random as np_random, sort, sqrt
+from numpy import array, exp, flip, random as np_random, round, sort, sqrt
 from typing import Union
 
-######################################################################
-
 from copy import deepcopy
-from datetime import datetime
-from math import exp
 from numpy import array
 from random import randint, getrandbits
 
@@ -232,7 +230,7 @@ class Tabu_Search(Optimizer):
                 new_obj_value = sum(new_allocation) - new_allocation[order_index] + fitness
                 
                 # check if move is tabu active
-                if (not self.is_tabu(tabu_add, order_index) and not self.is_tabu(tabu_add, order_index)):
+                if (not self.is_tabu(tabu_add, node_index) and not self.is_tabu(tabu_drop, order_index)):
                     move_admissable = True
                 
                 # check apiration criteria:
@@ -305,20 +303,29 @@ class Tabu_Search(Optimizer):
         return iter, self.best_allocation, best_obj_value
 
 
-#############################################################################################################
+def test_ts() -> None:
 
-ts = Tabu_Search()
+    '''Runs the Tabu Search Algorithm on a test instance and prints the results.'''
 
-candidates = list(range(26))
+    # init TS instance
+    ts = Tabu_Search()
 
-best_alloaction = list(0 for x in range(25))
+    # define inputs
+    candidates = list(range(26))
+    best_alloaction = list(0 for x in range(25))
+    best_obj_value = 0
 
-best_obj_value = 0
+    # run TS
+    iter, allocation, best_obj_value = ts.main(best_alloaction, best_obj_value, candidates)
 
-iter, allocation, best_obj_value = ts.main(best_alloaction, best_obj_value, candidates)
+    # print result
+    print(" ")
+    print("iter: ", iter, "obj_value: ", best_obj_value, allocation)
 
-print(" ")
-print("iter: ", iter, "obj_value: ", best_obj_value, allocation)
+if __name__ == "__main__":
+
+    test_ts()
+
     
     
 

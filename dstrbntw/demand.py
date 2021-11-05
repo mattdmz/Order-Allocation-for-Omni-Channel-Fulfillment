@@ -31,12 +31,12 @@ class Demand():
         
         return getattr(self, attr)[article_index, node_index]
 
-    def expected(self, article_index:int, node_index:int, current_time:datetime, cut_off_time:datetime) -> int:
+    def expected(self, article_index:int, node_index:int, current_time:datetime, op_end_time:datetime) -> int:
 
         ''' Returns the expected reounded demand for the remaining time of the day (12h) for a specific article at a specific node
             if SUBTRACT_EXPECTED_STOCK_DEMAND == True else returns 0.'''
 
-        return int(ceil(self.__getattr__("avg", article_index, node_index) / 720 * time_diff(cut_off_time, current_time)))
+        return int(ceil(self.__getattr__("avg", article_index, node_index) / 720 * time_diff(op_end_time, current_time)))
 
 
 

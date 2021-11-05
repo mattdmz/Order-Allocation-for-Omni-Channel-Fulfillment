@@ -7,7 +7,7 @@
 
 
 from datetime import datetime, time
-from math import sqrt
+from math import  sqrt
 from numpy import array, concatenate, float64, zeros 
 from scipy.stats import norm
 
@@ -16,7 +16,7 @@ from allocation.constants import RULE_BASED
 from dstrbntw.location import distance
 from dstrbntw.nodes import Node
 from dstrbntw.region import Region
-from parameters import ORDER_PROCESSING_START, OP_END_TIME, RPL_CYCLE_DURATION
+from parameters import ALREADY_ALLOCATED_THRESHOLD, ORDER_PROCESSING_START, OP_END_TIME, RPL_CYCLE_DURATION
 from transactions.orders import Order
 from utilities.datetime import time_diff
 
@@ -27,11 +27,11 @@ class Nearest_Nodes(Rule):
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, cut_off_time:datetime, operator:str=None) -> None:
+    def __init__(self, region:Region, current_time:datetime, operator:str=None) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, cut_off_time, operator, self.main)
+        super().__init__(region, current_time, operator, self.main)
 
     def main(self, order:Order, operator:str) -> array:
 
@@ -57,39 +57,42 @@ class Nearest_Already_Allocated_Nodes(Rule):
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, cut_off_time:datetime, operator:str) -> None:
+    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, cut_off_time, operator, self.main)
+        super().__init__(region, current_time, operator, self.main)
 
     def main(self, order:Order, operator:str) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on the distance to the other already allocated order's delivery location.'''
 
-        nodes_allocated_to  = (order.allocated_node for order in self.orders.allocated)
+        # check if there are enough orders for the algorithm to provide variety
+        nodes_allocated_to = [node.index for node in self.nodes.dict.values() if len(node.delivery.batches) > 0]
 
-        indexes = not_allocated_indexes = []
-        distances = not_allocated_distances = []
+        indexes = []
+        not_allocated_indexes = []
+        distances = []
+        not_allocated_distances = []
 
         for node in self.nodes.dict.values():
             node:Node
 
-            if node in nodes_allocated_to:
-                indexes.append(order.allocation.index)
+            if len(node.delivery.batches) > 0 and len(nodes_allocated_to) >= len(self.nodes.dict) * ALREADY_ALLOCATED_THRESHOLD:
+                indexes.append(node.index)
                 distances.append(distance(order.customer.location, node.location))
             else:
-                not_allocated_indexes.append(order.allocation.index)
+                not_allocated_indexes.append(node.index)
                 not_allocated_distances.append(distance(order.customer.location, node.location))
 
         #transfrom to numpy arrays to perfrom argsort
-        indexes = array(indexes)
+        indexes = array(indexes, dtype=int)
         distances = array(distances)
-        not_allocated_indexes = array(not_allocated_indexes)
+        not_allocated_indexes = array(not_allocated_indexes, dtype=int)
         not_allocated_distances = array(not_allocated_distances)
 
-        return concatenate(indexes[distances.argsort()], not_allocated_indexes[not_allocated_distances.argsort()])
+        return concatenate((indexes[distances.argsort()], not_allocated_indexes[not_allocated_distances.argsort()]))
 
 
 class Smallest_Demand_Variance(Rule):
@@ -98,16 +101,16 @@ class Smallest_Demand_Variance(Rule):
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, cut_off_time:datetime, operator:str) -> None:
+    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, cut_off_time, operator, self.main)
+        super().__init__(region, current_time, operator, self.main)
 
     def main(self, order:Order, operator:str) -> array:
 
         ''' Returns an numpy array with all node indexes
-            in ascending order based on the smallest variance.'''
+            in ascending order based on the operator variance.'''
 
         indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
         variances = zeros(shape=(len(self.nodes.dict)), dtype=float64)
@@ -122,17 +125,74 @@ class Smallest_Demand_Variance(Rule):
         return indexes[variances.argsort()]
 
 
+class Allocation_Of_Nearest_Order(Rule):
+
+    ''' Allocates an order to the node where the the order's delivery location is the least distant from was allocated to.'''
+
+    __type__ = RULE_BASED
+
+    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
+
+        '''Inits parent class.'''
+        
+        super().__init__(region, current_time, operator, self.main)
+
+    def main(self, order:Order, operator:str) -> array:
+
+        ''' Returns an numpy array with all node indexes
+            in ascending order based on the smallest distance 
+            of the order's delivery location other, 
+            already allocated prser's delivery locations.'''
+
+        # check if there are enough orders for the algorithm to provide variety
+        nodes_allocated_to = [node.index for node in self.nodes.dict.values() if len(node.delivery.batches) > 0]
+
+        indexes = []
+        not_allocated_indexes = []
+        distances = []
+        not_allocated_distances = []
+
+        for node in self.nodes.dict.values():
+            node:Node
+
+            if len(node.delivery.batches) > 0 and len(nodes_allocated_to) >= len(self.nodes.dict) * ALREADY_ALLOCATED_THRESHOLD:
+                
+                indexes.append(node.index)
+                dists = []
+
+                for batch in node.delivery.batches:
+                    for order in batch.orders:
+                        order:Order
+
+                        distance_to_orders_delivery_location = distance(order.customer.location, node.location)
+                        dists.append(distance_to_orders_delivery_location)
+
+                distances.append(min(dists))
+
+            else:
+                not_allocated_indexes.append(node.index)
+                not_allocated_distances.append(distance(order.customer.location, node.location))
+
+        # transfrom to numpy arrays to perfrom argsort
+        indexes = array(indexes, dtype=int)
+        distances = array(distances)
+        not_allocated_indexes = array(not_allocated_indexes, dtype=int)
+        not_allocated_distances = array(not_allocated_distances)
+
+        return concatenate((indexes[distances.argsort()], not_allocated_indexes[not_allocated_distances.argsort()]))
+
+
 class Longest_Stock_Duration(Rule):
 
     ''' Allocates the order to the node with the longest max (min, median, max) stock duration among all articles ordered.'''
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, cut_off_time:datetime, operator:str) -> None:
+    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, cut_off_time, operator, self.main)
+        super().__init__(region, current_time, operator, self.main)
 
     def main(self, order:Order, operator:str) -> array:
 
@@ -148,8 +208,13 @@ class Longest_Stock_Duration(Rule):
             node:Node
 
             indexes[i] = node.index
-            stock_duration[i] = operator((self.stock.current_level[line.article.index, node.index] 
-                                        - self.demand.__getattr__("avg", line.article.index, node.index)) for line in order.lines)
+
+            for line in order.lines:
+                print(node.index, line.article.index, self.stock.current_level[line.article.index, node.index], self.stock.reserved[line.article.index, node.index], self.demand.__getattr__("avg", line.article.index, node.index))
+
+                stock_duration[i] = operator(list((self.stock.current_level[line.article.index, node.index] - self.stock.reserved[line.article.index, node.index])
+                                        / self.demand.__getattr__("avg", line.article.index, node.index) for line in order.lines))
+
 
         return indexes[stock_duration.argsort()[::-1]]
 
@@ -160,11 +225,11 @@ class Dynamic_1(Rule):
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, cut_off_time:datetime, operator:str) -> None:
+    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, cut_off_time, operator, self.main)
+        super().__init__(region, current_time, operator, self.main)
 
     def remaining_days_until_replenishment(self, node_type:int) -> float:
         

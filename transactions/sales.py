@@ -10,7 +10,8 @@ from datetime import datetime
 
 from dstrbntw.articles import Articles
 from dstrbntw.nodes import Nodes
-from protocols.constants import REGION_ID, PROC_DATETIME, NUMBER_OF_LINES, LINES_CLOSED, POTENTIAL_OFFLINE_REVENUE, OFFLINE_REVENUE
+from protocols.constants import DIMINUISHED_STOCK_VALUE, LINES_CLOSED, NUMBER_OF_LINES, OFFLINE_REVENUE, PROC_DATETIME, \
+                                POTENTIAL_OFFLINE_REVENUE, REGION_ID, REL_LINES_CLOSED, REL_OFFLINE_REVENUE
 
 
 class Sale():
@@ -75,6 +76,7 @@ class Sales:
         # init revenue attr and list to store sales
         self.list = []
         self.revenue = 0
+        self.diminuished_stock_value = 0
 
     @property
     def potential_revenue(self) -> float:
@@ -97,18 +99,21 @@ class Sales:
 
         return sum(sale.lines_closed for sale in self.list)
 
-    def store_realized_revenue(self, realized_revenue:float) -> None:
+    def store_results(self, realized_revenue:float, diminuished_stock_value:int) -> None:
 
-        '''Stores the realized revenue from processing sales.'''
+        '''Stores the realized revenue and the diminuished_stock_value from processing sales.'''
 
         self.revenue = realized_revenue
+        self.diminuished_stock_value = diminuished_stock_value
 
     def clear(self) -> None:
 
-        '''Clears list of sales.'''
+        ''' Clears list of sales.
+            Sets revenue and diminuished_stock_value to zero.'''
     
         self.list = []
         self.revenue = 0
+        self.diminuished_stock_value = 0
 
     def process(self, current_time:datetime, region_id:int) -> dict:
 
@@ -121,8 +126,11 @@ class Sales:
                     REGION_ID: region_id,
                     NUMBER_OF_LINES: self.number_of_lines,
                     LINES_CLOSED: self.number_of_lines_closed,
+                    REL_LINES_CLOSED: self.number_of_lines_closed / self.number_of_lines,
                     POTENTIAL_OFFLINE_REVENUE: self.potential_revenue,
                     OFFLINE_REVENUE: self.revenue,
+                    REL_OFFLINE_REVENUE: self.revenue / self.potential_revenue,
+                    DIMINUISHED_STOCK_VALUE: self.diminuished_stock_value
             }
         
         else:

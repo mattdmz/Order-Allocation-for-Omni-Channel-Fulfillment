@@ -22,16 +22,19 @@ def df_from_file(file_name:str, dir:str=INPUT_DIR, index_col:int=None, specific_
     return read_csv(path.join(dir, file_name + FILE_TYPE), sep=SEP_FORMAT, decimal=DECIMAL_FORMAT, index_col=index_col, \
                     dtype=dtype, usecols=specific_columns, low_memory=True)
 
-def from_csv(file_name:str, dir:str=INPUT_DIR, read_headers:bool=None):
+def from_csv(file_name:str, dir:str=INPUT_DIR, read_headers:bool=False):
 
     '''Returns data as list from a csv file.'''
 
     with open(path.join(dir, file_name + FILE_TYPE), "r") as input_file:
         
         if read_headers:
-            return input_file.read().splitlines()
+            data = input_file.read().splitlines()
+    
         else:
-            return input_file.read().splitlines()[1:]
+            data = input_file.read().splitlines()[1:]
+
+    return [line.split(SEP_FORMAT) for line in data]
 
 
 

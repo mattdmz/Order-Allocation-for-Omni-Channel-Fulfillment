@@ -6,7 +6,7 @@
 ###############################################################################################
 
 from csv import writer
-from numpy import array
+from numpy import array, savetxt
 from os import path, makedirs
 from pandas import DataFrame
 
@@ -18,7 +18,7 @@ def write_df(df:DataFrame, file_name:str, dir_path:str=OUTPUT_DIR, mode:str="w",
         If no directory is specified, the default output directory is used.'''
 
     df.to_csv(path.join(dir_path, file_name + FILE_TYPE), mode=mode, sep=SEP_FORMAT, decimal=DECIMAL_FORMAT, 
-                        header=header, index=index, line_terminator=LINE_TERM, float_format="%.2f")
+                        header=header, index=index, line_terminator=LINE_TERM, float_format="%.4f")
 
 def write_dict(dict:dict, file_name:str, dir_path:str=OUTPUT_DIR, mode:str="w") -> None:
     
@@ -46,19 +46,12 @@ def write_results(dict:dict, file_name:str, dir_path:str=OUTPUT_DIR, mode:str="w
             # write values
             csv_writer.writerow(list(dict.values()))
 
-def write_numpy_array(arr:array, file_name:str, dir_path:str=OUTPUT_DIR, header:list=None, index:list=None)-> None:
+def write_numpy_array(arr:array, file_name:str, dir_path:str=OUTPUT_DIR)-> None:
 
     '''Converts a np_array to a pandas DataFrame and
         writes the DataFrame into an export file.'''
 
-    df = DataFrame(arr, columns=[header], index=[index])
-
-    #determine if headers and indexes should be written
-    header = True if header is not None else False
-    index = True if index is not None else False
-
-    #write df to csv
-    df.to_csv(path.join(dir_path, file_name + FILE_TYPE), sep=SEP_FORMAT, decimal=DECIMAL_FORMAT, mode='w', header=header, index=index)
+    savetxt(file_name + FILE_TYPE, arr, fmt="%i", delimiter=SEP_FORMAT)
 
 def write_output_file(data:list, file_name:str, dir_path:str=OUTPUT_DIR, mode:str="w")-> None:
 

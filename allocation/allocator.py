@@ -16,24 +16,23 @@ from database.constants import NODE_TYPE
 from dstrbntw.constants import ACCEPTING_ORDERS
 from dstrbntw.region import Region
 from dstrbntw.delivery import Delivery
-from parameters import MAX_WORKING_TIME
-from protocols.constants import ALLOC_ARR, ALLOCATION_DATETIME, ITER, OBJ_VALUE, PUNCTUALITY, REGION_ID
+from protocols.constants import ALLOC_ARR, ALLOCATION_DATETIME, BEST_OBJ_VALUE, ITER, NUMBER_OF_ORDERS, REGION_ID, RETRY, SAMEDAY_DELIVERY
 from transactions.orders import Order
 from transactions.sales import Sale
-from utilities.datetime import processing_day
+from parameters import OP_END_TIME
+from utilities.datetime import delivered_on
 
 class Allocator:
 
     '''Parent class for all allocators (rules and optimizers).'''
 
-    def __init__(self, region:Region, current_time:datetime, cut_off_time:datetime) -> None:
+    def __init__(self, region:Region, current_time:datetime) -> None:
 
         '''Stores region-model objects and inits DatFrame to store allocations.'''
 
         # store model data
         self.region_id = region.id
         self.current_time = current_time
-        self.cut_off_time = cut_off_time
         self.articles = region.articles
         self.customers = region.customers
         self.demand = region.demand
@@ -41,8 +40,7 @@ class Allocator:
         self.orders = region.orders
         self.sales = region.sales
         self.stock = region.stock
-        self.evaluation_model = Evaluation_Model(self.sales, self.orders, self.stock.current_level, self.stock.reserved, self.stock.holding_rates, \
-                                                    self.nodes.tour_rates, self.nodes.route_rates)
+        self.evaluation_model = Evaluation_Model(self.sales, self.orders, self.stock.holding_rates, self.nodes.tour_rates, self.nodes.route_rates)
 
         # init allocation attribute
         self.allocation = None
@@ -68,7 +66,8 @@ class Allocator:
         for line in order.lines:
             line:Order.Line
             
-            availability = self.stock.availability(line.article.index, node_index, line.quantity, self.current_time, self.cut_off_time)
+            availability = self.stock.availability(line.article.index, node_index, line.quantity, self.current_time, 
+                            datetime.combine(self.current_time.date(), OP_END_TIME[self.nodes.__getattr__(NODE_TYPE, index=node_index)]))
             if not availability:
                 break
         
@@ -83,23 +82,15 @@ class Allocator:
             
             self.stock.reserve(line.article.index, node_index, line.quantity)
 
-    def add_stock(self, order:Order, node_index:int):
-
-        '''Adds amount of article demanded in order to stock.'''
-        
-        for line in order.lines:
-            line:Order.Line
-            
-            self.stock.add(line.article.index, node_index, line.quantity)
-
     def sell(self, sale:Sale) -> float:
 
         ''' Sets True or False if each saleline of the saleline can be closed or not 
             depending if stock is available to satisfy the demanded quantity of each saleline.
-            If stock is available, the demanded quantity is consumed and the realized revenue 
+            If stock is available, the demanded quantity is consumed and returned and the realized revenue 
             is collected for each saleline.'''
 
         revenue = 0
+        pieces_sold = 0
 
         # check if there is enough stock available
         for line in sale.lines:
@@ -113,8 +104,9 @@ class Allocator:
                 # collect revenue from saleline
                 line.closed = True
                 revenue += line.article.price * line.quantity
+                pieces_sold += line.quantity
 
-        return revenue
+        return revenue, pieces_sold
             
     def node_available(self, node_index:int) -> bool:
 
@@ -136,7 +128,7 @@ class Allocator:
         prototype_delivery.approximate_routes(prototype_delivery.add_order(order))
 
         # schedule tour and its order processing
-        prototype_delivery.schedule_batches(processing_day(self.current_time, self.cut_off_time))
+        prototype_delivery.create_batches(delivered_on(self.current_time, self.nodes.__getattr__(NODE_TYPE, index=node_index)))
 
         # check if tour start after current_time to assure allocatability
         order_deliverable = prototype_delivery.on_time(self.current_time)
@@ -193,11 +185,11 @@ class Allocator:
         # builde routes if there is more than 1 order to deliver
         if len(delivery.orders_to_deliver) > 1:
             
-            #build routes
-            delivery.build_routes(time_capacity_per_tour=MAX_WORKING_TIME[order.allocated_node.node_type])
+            # build routes
+            delivery.build_routes(node_type=order.allocated_node.node_type)
         
             # schedule tour and its order processing
-            delivery.schedule_batches(processing_day(self.current_time, self.cut_off_time))
+            delivery.create_batches(self.current_time)
 
     def prepare_evaluation(self) -> None:
 
@@ -205,17 +197,21 @@ class Allocator:
             Methode must be called before evaluating an allocation'''
 
         self.evaluation_model.prepare(self.orders.allocation_based_supply_costs(), self.orders.allocation_based_processing_costs(), \
-                                self.stock.demanded(self.orders.list), self.nodes.tour_durations, self.sales.revenue)
+                                self.stock.demanded(self.orders.list), self.nodes.tour_durations, self.sales.revenue, self.sales.diminuished_stock_value)
 
     def evaluate(self, allocation:array, iter:int=1) -> dict:
 
         '''Returns a dict containing the evaluation of the allocation.'''
 
+        on_retry = sum(order.allocation_retried for order in self.evaluation_model.orders_list)
+
         return {    ALLOCATION_DATETIME: self.current_time,
                     REGION_ID: self.region_id,
                     ITER: iter,
-                    OBJ_VALUE: self.evaluation_model.objective_function(allocation),
-                    PUNCTUALITY: self.evaluation_model.punctuality(self.current_time, self.cut_off_time),
+                    BEST_OBJ_VALUE: self.evaluation_model.objective_function(allocation),
+                    NUMBER_OF_ORDERS: len(self.evaluation_model.orders_list) - on_retry,
+                    RETRY: on_retry,
+                    SAMEDAY_DELIVERY: self.evaluation_model.sameday_delivery(self.current_time),
                     ALLOC_ARR: allocation
                 }
 

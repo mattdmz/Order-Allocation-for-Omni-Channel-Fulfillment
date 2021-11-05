@@ -4,7 +4,7 @@ from mysql.connector.errors import DatabaseError
 from database.connector import Database
 from database.views import *
 
-def test(view_to_test:object):
+def test(view_to_test:object) -> None:
     
     ''' Function to test a view with predefined parameters.
         Returns the first 5 results fetched or an error. '''
@@ -13,8 +13,10 @@ def test(view_to_test:object):
     start = "2019-03-01"
     end = "2019-03-02"
     day = "2019-03-01"
-    start_time = "00:00"
-    end_time = "05:00"
+    start_time = "00:00:00"
+    end_time = "05:00:00"
+    start_datetime = start + " " + start_time
+    end_datetime = end + " " + end_time
     fc = 1001
     zip_region = 10
     node_id = 3
@@ -32,7 +34,7 @@ def test(view_to_test:object):
                 data = All_Objects(db, columns, NODES).data
             
             elif view_to_test == Transactions_in_Period:
-                data = Transactions_in_Period(db, ORDERS, start=start, end=end, fc=fc).data
+                data = Transactions_in_Period(db, ORDERS, start=start_datetime, end=end_datetime, fc=fc).data
             
             elif view_to_test == Transactions_on_Day:
                 data = Transactions_on_Day(db, ORDERS, day=day, start_time=start_time, end_time=end_time, fc=fc).data               
@@ -81,4 +83,4 @@ def test(view_to_test:object):
 
 if __name__ == "__main__":
 
-    test(Articles_Sold_Online)
+    test(Transactions_in_Period)

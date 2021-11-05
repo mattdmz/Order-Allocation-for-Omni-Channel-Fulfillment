@@ -22,14 +22,14 @@ class Rule(Allocator):
 
     '''Parent class with allocation logic for all allocation rules.'''
 
-    def __init__(self, region:Region, current_time:datetime, cut_off_time:datetime, operator:str, main)-> None:
+    def __init__(self, region:Region, current_time:datetime, operator:str, main)-> None:
 
         ''' Creates a chronological list of orders and sales to process.
             Allocates orders rule based.
             Prepares evaluation.
             Stores allocation. '''
 
-        super().__init__(region, current_time, cut_off_time)
+        super().__init__(region, current_time)
 
         # store alloc operator of child class
         self.operator = operator
@@ -40,8 +40,8 @@ class Rule(Allocator):
         # get a created a list of order and sale ids based on its date_time
         self.chron_trnsct_list = self.create_chron_trnsct_list()
 
-        allocation, revenue = self.allocate_rule_based()
-        self.sales.store_realized_revenue(revenue)
+        allocation, revenue,  diminuished_stock_value = self.allocate_rule_based()
+        self.sales.store_results(revenue, diminuished_stock_value)
         self.prepare_evaluation()
         self.store_allocation(self.evaluate(allocation))
 
@@ -115,15 +115,16 @@ class Rule(Allocator):
         # return the best feedback
         return best_feedback
 
-    def allocate_rule_based(self) -> Tuple[array, float]:
+    def allocate_rule_based(self) -> Tuple[array, float, int]:
 
-        ''' Tries to close all sales and collects their revenue.
+        ''' Tries to close all sales and collects their revenue and the diminuished stock value.
             Assigns orders based on the rule set in parameters.'''
 
         # init index to store the node_id for the order allocation
         index = 0
         allocation =  self.init_allocation_array()
         revenue = 0
+        diminuished_stock_value = 0
 
         # transactions (sales, orders) must be handled follwinging the order of their occurrence in time
         for trnsct in self.chron_trnsct_list:
@@ -131,8 +132,12 @@ class Rule(Allocator):
             # handle sales and allocate order sbased on rule
             if isinstance(trnsct, Sale):
                 
-                # get the sale from the list, try to close the sale, collect the revenue and protocol lines which could not be closed
-                revenue += self.sell(trnsct)
+                #try to close the sale, collect the revenue and the number of pieces sold and protocol lines which could not be closed
+                rev, pieces_sold = self.sell(trnsct)
+
+                if rev > 0:
+                    revenue += rev
+                    diminuished_stock_value += trnsct.node.stock_holding_rate * pieces_sold
             
             else: # order
                 
@@ -145,6 +150,6 @@ class Rule(Allocator):
 
                 index += 1     
 
-        return allocation, revenue
+        return allocation, revenue, diminuished_stock_value
 
 

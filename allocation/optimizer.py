@@ -2,17 +2,21 @@
 from copy import deepcopy
 from datetime import datetime
 from numpy import array, flip, random as np_random, sort
+from os import path
+from pandas import DataFrame
 from typing import Union
 
-from allocation.constants import DELIVERY, DURATIONS, DEMANDED, RATES, ROUTE_RATES, TOUR_RATES
+from allocation.constants import DELIVERY
 from allocation.allocator import Allocator
+from configs import OUTPUT_DIR
 from dstrbntw.constants import CUSTOMER
-from allocation.evaluation import improvement, update
 from dstrbntw.delivery import Delivery
-from dstrbntw.constants import PIECES
 from dstrbntw.nodes import Node
 from dstrbntw.region import Region
+from parameters import MAX_PAL_VOLUME
+from protocols.constants import BEST_OBJ_VALUE, ITER, OBJ_VALUE, RUN_ID, STRATEGY
 from transactions.orders import Order
+from utilities.expdata import write_df
 
 class Optimizer(Allocator):
 
@@ -28,6 +32,9 @@ class Optimizer(Allocator):
         # store main method of child class
         self.main = main
 
+        # init a DataFrame to protocol the optimization run
+        self.protocol = self.init_protocol()
+
         # seed 
         seed_allocation = self.seed()
         
@@ -38,6 +45,13 @@ class Optimizer(Allocator):
         # run algorithm, evaluate and store result
         allocation = self.main(seed_allocation, seed_obj_value)
         self.store_allocation(self.evaluate(allocation))
+        self.export_protocol()
+
+    def init_protocol(self) -> DataFrame:
+
+        '''Inits a DataFrame to protocol the optimization run.'''
+
+        return DataFrame(columns=[ITER, OBJ_VALUE, BEST_OBJ_VALUE, STRATEGY])
 
     def seed(self) -> array:
 
@@ -63,29 +77,28 @@ class Optimizer(Allocator):
             Returns improvement as delta between allocation to neighbour and current allocation.
             A positive return value means the allocation costs descreased and viceversa.'''
 
-        # get the neighbour's node object
-        neighbour = self.nodes.__get__(index=neighbour_index) #type: Node
+        # get objects
+        order = self.orders.__get__(order_index) # type: Order
+        neighbour = self.nodes.__get__(index=neighbour_index) # type: Node
+        current_node = self.nodes.__get__(index=current_node_index) # type: Node
 
         # build a protype_tour to approximate route duration
-        prototype_tour = deepcopy(neighbour.delivery) #type: Delivery
-        prototype_tour.approximate_routes(prototype_tour.calc_duration_to_other_stops(self.orders.__getattr__(order_index, CUSTOMER)))
+        prototype_delivery = deepcopy(neighbour.delivery) #type: Delivery
+        prototype_delivery.approximate_routes(prototype_delivery.calc_duration_to_other_stops(self.orders.__getattr__(order_index, CUSTOMER)))
 
-        print("supply improvement: ", improvement(self.evaluation_model.supply, RATES, order_index, neighbour.supply_rate))
-        print("order proc improvement: ", improvement(self.evaluation_model.order_processing, RATES, order_index, neighbour.order_processing_rate))
-        print("stock improvement: ", improvement(self.evaluation_model.stock, RATES, current_node_index, neighbour.stock_holding_rate) * self.evaluation_model.stock.demanded))
-        print("tour rates improvement: ", improvement(self.evaluation_model.tours, TOUR_RATES, order_index, neighbour.tour_rate))
-        print("route rates improvement: ", improvement(self.evaluation_model.tours, ROUTE_RATES, order_index, neighbour.route_rate))
-        print("durations improvement: ", improvement(self.evaluation_model.tours, DURATIONS, order_index, prototype_tour.tot_duration))
-
-
+        print("supply costs improvement: ", (current_node.supply_rate - neighbour.supply_rate) * order.volume / MAX_PAL_VOLUME)
+        print("order proc costs improvement: ", (current_node.order_processing_rate - neighbour.order_processing_rate) * order.lines)
+        print("diminuished stock value improvement: ", (current_node.stock_holding_rate - neighbour.stock_holding_rate) * order.pieces)
+        print("route costs improvement: ", (current_node.route_rate * current_node.delivery.tot_duration) - (neighbour.route_rate * prototype_delivery.tot_duration))
+        print("tour costs improvement: ", (current_node.tour_rate * 1 if prototype_delivery.tot_duration > 0 else 0) - neighbour.tour_rate)
         
-        return      improvement(self.evaluation_model.supply, RATES, order_index, neighbour.supply_rate) \
-                +   improvement(self.evaluation_model.order_processing, RATES, order_index, neighbour.order_processing_rate) \
-                +   improvement(self.evaluation_model.stock, RATES, current_node_index, neighbour.stock_holding_rate) * self.evaluation_model.stock.demanded \
-                +   improvement(self.evaluation_model.tours, TOUR_RATES, order_index, neighbour.tour_rate) \
-                +   improvement(self.evaluation_model.tours, ROUTE_RATES, order_index, neighbour.route_rate) \
-                *   improvement(self.evaluation_model.tours, DURATIONS, order_index, prototype_tour.tot_duration)
-
+        return      (current_node.supply_rate - neighbour.supply_rate) * order.volume / MAX_PAL_VOLUME \
+                +   (current_node.order_processing_rate - neighbour.order_processing_rate) * order.lines \
+                +   (current_node.stock_holding_rate - neighbour.stock_holding_rate) * order.pieces \
+                +   (current_node.tour_rate * 1 if prototype_delivery.tot_duration > 0 else 0) - neighbour.tour_rate \
+                +   (current_node.route_rate * current_node.delivery.tot_duration / len(current_node.delivery.orders_to_deliver)) - \
+                -   (neighbour.route_rate * prototype_delivery.tot_duration / len(prototype_delivery.orders_to_deliver))
+                
     def evaluate_neighbourhood(self, neighbourhood:array, best_allocation:array) -> Union[array, array]:
 
         ''' Determines the fitness of all neighbours by comparing how they would improve the objective value
@@ -97,16 +110,12 @@ class Optimizer(Allocator):
 
         # calculate fitness value for each neighbour
         for order_index, neighbour_index in enumerate(neighbourhood):
-            order_index:int
-            neighbour_index:int
-            
             fitness.append(self.calc_fitness(order_index, neighbour_index, best_allocation[order_index]))
 
         # create arrays
         order_indexes = array(list(range(len(neighbourhood))))
         neighbour_fitness = array(fitness)
-        
-        # get permutation to apply on other arrays
+
         permutation = neighbour_fitness.argsort()[::-1]
 
         return order_indexes[permutation], neighbourhood[permutation], flip(sort(neighbour_fitness))
@@ -135,6 +144,16 @@ class Optimizer(Allocator):
                     return True 
         
         return False
+
+    def export_protocol(self) -> None:
+
+        ''' Exports the protocol of an optimization run directly to the output driectory.
+            Delets the protocol.'''
+
+        write_df(   self.protocol, RUN_ID + "_optimization_protocol_" + self.current_time, 
+                    path.join(OUTPUT_DIR, RUN_ID), header=True, index=True)
+
+        del self.protocol
 
     class Neighbourhood_Generator: 
 

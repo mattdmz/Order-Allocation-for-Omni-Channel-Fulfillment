@@ -5,14 +5,14 @@
 
 ###############################################################################################
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from dstrbntw.articles import Articles
 from dstrbntw.customers import Customers
 from dstrbntw.location import distance
-from parameters import MAX_PAL_VOLUME
+from parameters import MAX_PAL_VOLUME, NUMBER_OF_WORKDAYS
 from protocols.constants import *
-
+from utilities.datetime import cut_off_time
 
 class Order():
 
@@ -24,7 +24,7 @@ class Order():
             # assign attributes
             self.id = data[0]
             customer_id = data[1]
-            self.date_time = datetime.combine(data[2], datetime.min.time()) + data[3]
+            self.date_time = datetime.combine(data[2], datetime.min.time()) + data[3] #type: datetime
             self.price = float(data[4])
             self.volume = float(data[5])
             # self.weight = float(data[6])
@@ -40,6 +40,10 @@ class Order():
             self.allocated_node =  None
             self.allocation_time = None
             self.delivery_index = None
+
+            # set initial value for allocation retry
+            self.allocation_retried = False
+            self.failure = None
 
         @property
         def number_of_lines(self) -> int:
@@ -69,59 +73,52 @@ class Order():
 
             return self.number_of_lines * self.allocated_node.order_processing_rate
 
-        def delivered_sameday(self, current_time:datetime, cut_off_time:datetime) -> bool:
+        def delivered_sameday(self, current_time:datetime) -> bool:
 
             ''' Returns True or False depending if the order is delivered sameday or not
-                For orders coming in after cut_off_time, sameday == True if they are deliverd on the subsequent day.'''
+                For orders coming in after cut_off_time, sameday == True also if they are deliverd on the subsequent day.'''
 
-            return True if (self.date_time <= cut_off_time and self.allocated_node !=None) or \
-                            (self.date_time > cut_off_time and (current_time + timedelta(days=1)).date() == self.date_time.date()) else False
+            cot = cut_off_time(self.date_time.date()) 
+            incoming_weekday = self.date_time.isoweekday()
+            current_weekday = current_time.isoweekday()
 
-        def protocol(self, region_id:int, current_time:datetime,  cut_off_time:datetime=None, delivery_costs:float=None, stock_holding_costs:float=None, failure:int=None) -> dict:
+            return True if (incoming_weekday <= NUMBER_OF_WORKDAYS and current_weekday == incoming_weekday and self.allocated_node != None) \
+                        or (incoming_weekday < NUMBER_OF_WORKDAYS and self.date_time > cot and current_weekday == incoming_weekday + 1 and self.allocated_node != None) \
+                        or (incoming_weekday >= NUMBER_OF_WORKDAYS and current_weekday == 1 and self.allocated_node != None) \
+                        else False
+
+        def protocol(self, region_id:int, proc_time:datetime, delivery_costs:float=0, delivery_duration:float=0, diminuished_stock_value:float=0) -> dict:
 
             '''Returns a dict documenting the (not) processing of the order and its related costs.'''
 
             if self.allocated_node != None:
-
                 supply_costs = self.supply_costs
                 processing_costs = self.processing_costs
-                
-                # calculate values for successfully allocated order
-                return {    ORDER_ID: self.id,
-                            REGION_ID: region_id,
-                            ARRIVAL_DATETIME: self.date_time,
-                            ALLOCATION_DATETIME: self.allocation_time,
-                            PROC_DATETIME: current_time,
-                            ALLOCATED_NODE_ID: self.allocated_node.id,
-                            POTENTIAL_ONLINE_REVENUE: self.price,
-                            ONLINE_REVENUE: self.price,
-                            SUPPLY_COSTS: supply_costs, 
-                            ORDER_PROCESSING_COSTS: processing_costs, 
-                            DELIVERY_COSTS: delivery_costs,
-                            STOCK_HOLDING_COSTS: stock_holding_costs,
-                            PROFIT: self.price - supply_costs - processing_costs - delivery_costs - stock_holding_costs,
-                            PUNCTUALITY: self.delivered_sameday(current_time, cut_off_time),
-                            DISTANCE: distance(self.customer.location, self.allocated_node.location)
-                        }
-            else:
-                # return zeros for unsuccessfully allocated order
-                return {    ORDER_ID: self.id,
-                            REGION_ID: region_id,
-                            ARRIVAL_DATETIME: self.date_time,
-                            ALLOCATION_DATETIME: current_time,
-                            PROC_DATETIME: "",
-                            ALLOCATED_NODE_ID: failure,
-                            POTENTIAL_ONLINE_REVENUE: self.price,
-                            ONLINE_REVENUE: 0,
-                            SUPPLY_COSTS: 0, 
-                            ORDER_PROCESSING_COSTS: 0, 
-                            DELIVERY_COSTS: 0,
-                            STOCK_HOLDING_COSTS: 0,
-                            PROFIT: 0,
-                            PUNCTUALITY: False,
-                            DISTANCE: 0
-                        }
 
+            else:
+                supply_costs = 0
+                processing_costs = 0          
+                
+            # calculate values for successfully allocated order
+            return {    ORDER_ID: self.id,
+                        REGION_ID: region_id,
+                        ARRIVAL_DATETIME: self.date_time,
+                        ALLOCATION_DATETIME: self.allocation_time,
+                        PROC_DATETIME: proc_time if self.allocated_node is not None else "",
+                        ALLOCATED_NODE_ID: self.allocated_node.id if self.allocated_node is not None else self.failure,
+                        POTENTIAL_ONLINE_REVENUE: self.price,
+                        ONLINE_REVENUE: self.price if self.allocated_node is not None else 0,
+                        SUPPLY_COSTS: supply_costs, 
+                        ORDER_PROCESSING_COSTS: processing_costs, 
+                        DELIVERY_COSTS: delivery_costs,
+                        DIMINUISHED_STOCK_VALUE: diminuished_stock_value,
+                        PROFIT: self.price + diminuished_stock_value - supply_costs - processing_costs - delivery_costs if self.allocated_node is not None else 0,
+                        SAMEDAY_DELIVERY: self.delivered_sameday(proc_time),
+                        RETRY: self.allocation_retried,
+                        DELIVERY_DURATION: delivery_duration,
+                        DISTANCE: distance(self.customer.location, self.allocated_node.location) if self.allocated_node is not None else 0,
+                        DELIVERED_ORDERS: 1 if self.allocated_node is not None else 0
+                    }
 
         class Line():
         
@@ -212,12 +209,12 @@ class Orders:
 
         return list(order.processing_costs if order.allocated_node is not None else 0 for order in self.list)
 
-    def delivered_sameday(self, current_time:datetime, cut_off_time:datetime) -> list:
+    def delivered_sameday(self, current_time:datetime) -> int:
 
-        ''' Returns True or False depending if the order is delivered sameday or not
-            For orders coming in after cut_off_time, sameday == True if they are deliverd on the subsequent day.'''
+        ''' Returns the number of orders in orders.list delivered sameday
+            For orders coming in after cut_off_time, sameday == True also if they are deliverd on the subsequent day.'''
 
-        return list(order.delivered_sameday(current_time, cut_off_time) for order in self.list)
+        return sum(order.delivered_sameday(current_time) for order in self.list)
 
     def allocation_retry(self, order:Order) -> None:
 
@@ -228,10 +225,16 @@ class Orders:
     def reschedule_unallocated(self) -> None:
 
         ''' Removes orders that could not be allocated and need a allocation retry 
-            from orders.allocation_retry_needed and adds them to orders.list.'''
+            from orders.allocation_retry_needed and adds them to orders.list.
+            Marks orders as having an allocation retry in place.'''
 
         self.list = self.allocation_retry_needed
         self.allocation_retry_needed = []
+
+        for order in self.list:
+            order:Order
+
+            order.allocation_retried = True
 
 
 
