@@ -20,7 +20,7 @@ from dstrbntw.constants import A, B, C, FULFILLMENT_CENTER, IMPORTED_LEVEL, RNDM
 # period of time in which transactions (orders, sales) are collected and allocated/fulfilled
 ALLOC_PERIOD = timedelta(hours=3, minutes=0, seconds=0)
 ALLOC_REGIONS = "all"         # [LIST] of regions to allocated orders in, e.g. [1005]. All all regions should be considered tpye "all"
-ALREADY_ALLOCATED_THRESHOLD = 0.2   # -> relevant for Nearest_Already_Allocated_Nodes
+ALREADY_ALLOCATED_THRESHOLD = 0.15   # -> relevant for Nearest_Already_Allocated_Nodes
 
 # _________________________________________________________________________________________________________________________________________________
 

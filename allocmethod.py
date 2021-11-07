@@ -11,7 +11,7 @@ from allocation.rules import Nearest_Nodes, Nearest_Already_Allocated_Nodes, All
 from allocation.constants import MIN, MAX, MEDIAN
 
 # choose from allocator.rules
-ALLOC_METHOD = Nearest_Already_Allocated_Nodes
+ALLOC_METHOD = Longest_Stock_Duration
 
 # choose from allocator.constants, relevant for Longest_Stock_Duration
 ALLOC_OPERATOR = MEDIAN                                          

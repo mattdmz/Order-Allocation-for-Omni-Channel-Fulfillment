@@ -7,7 +7,7 @@
 
 from datetime import datetime
 
-from dstrbntw.articles import Articles
+from dstrbntw.articles import Articles, Article
 from dstrbntw.customers import Customers
 from dstrbntw.location import distance
 from parameters import MAX_PAL_VOLUME, NUMBER_OF_WORKDAYS
@@ -131,7 +131,7 @@ class Order():
                 self.quantity = data[2]
                 
                 #add article based on the article id
-                self.article = articles.__get__(article_id)
+                self.article = articles.__get__(article_id) #type: Article
 
             @property
             def volume(self):
