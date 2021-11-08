@@ -121,16 +121,34 @@ class Delivery(Vehicle):
         self.duration_matrix = delete(self.duration_matrix, order.delivery_index + 1, axis=0) # +1 as the depot has index 0
         self.duration_matrix = delete(self.duration_matrix, order.delivery_index + 1, axis=1) # +1 as the depot has index 0
 
-    def modify_indexes(self) -> None:
+    def modify_indexes(self, order_to_remove:Order) -> None:
 
         ''' Reduces order.delivery_index by 1 if for all orders.
             This method must be run when an order is removed from a delivery tour.'''
 
         for index, order in enumerate(self.orders_to_deliver):
+            index:int
             order:Order
+            
+            if order.delivery_index > order_to_remove.delivery_index:
+                break
 
-            order.delivery_index -= 1
-            self.routes[1 + index] -=1
+        for i in range(index, len(self.orders_to_deliver)):
+            i:int
+            
+            self.orders_to_deliver[i].delivery_index -= 1
+                
+        for index, stop in enumerate(self.routes):
+            index:int
+            stop:int
+
+            if stop == order.delivery_index:
+                break
+
+        for i in range(index, len(self.routes)):
+            i:int
+
+            self.routes[i] -= 1
 
     def add_order(self, order:Order) -> array:
 
@@ -155,11 +173,11 @@ class Delivery(Vehicle):
 
         '''Removes order from delivery delivery tour.'''
         
+        self.modify_indexes(order)
         self.orders_to_deliver.remove(order)
         self.delivery_volume.remove(order.volume)
         self.remove_from_duration_matrix(order)
         self.remove_from_batches(order)
-        self.modify_indexes()
         order.delivery_index = 0
 
     def position_with_nearest_neighbours(self, new_durations:array) -> int:
@@ -223,7 +241,7 @@ class Delivery(Vehicle):
 
         return list(self.orders_to_deliver[index - 1] for index in route[1:-1])
 
-    def delivery_start(self, batch_index:int, batches:list, delivery_duration:int, processing_day:date) -> time:
+    def delivery_start(self, batch_index:int, batches:list, delivery_duration:int) -> time:
 
         '''Retunrns the start time of the delivery tour.'''
 
@@ -236,7 +254,7 @@ class Delivery(Vehicle):
             # set delivery tour start to end of privous delivery tour + a small pause
             start_time = calc_time(batches[batch_index - 1].delivery_end.time(), self.pause_btw_tours, ADD)
             
-        return datetime.combine(processing_day, start_time)   
+        return datetime.combine(self.day, start_time)   
 
 
     class Batch:
@@ -304,7 +322,7 @@ class Delivery(Vehicle):
             self.processing_start =  self.delivery_start - timedelta(minutes=self.processing_duration)
   
             
-    def create_batches(self, processing_day:date) -> None:
+    def create_batches(self) -> None:
 
         ''' Separetes single tours and creates batches.
             Schedules operations for batch
@@ -337,7 +355,7 @@ class Delivery(Vehicle):
         
         # schedule operations for batches
         for index, batch in enumerate(batches):
-            delivery_start = self.delivery_start(index, batches, batch.delivery_duration, processing_day)
+            delivery_start = self.delivery_start(index, batches, batch.delivery_duration)
             batch.schedule(delivery_start)
         
         # sort routs in descending order based on their duration
@@ -364,13 +382,14 @@ class Delivery(Vehicle):
             # no batches added yet
             return datetime(2050, 1, 1, 1, 1)
 
-    def batch_to_process(self) -> list:
+    def batch_to_process(self) -> Batch:
         
-        ''' Returns batch of orders that needs to be processed from bacthces
+        ''' Returns batch of orders that needs to be processed from batchces (if there is any)
             Deletes batch from list and removes the orders from the delivery.'''
 
-        batch = self.batches[0]
-        del self.batches[0]
+        batch = self.batches[0] if len(self.batches[0].orders) > 0 else None
+        if batch is not None:
+            del self.batches[0]
         return batch
 
     def on_time(self, current_time:datetime) -> bool:

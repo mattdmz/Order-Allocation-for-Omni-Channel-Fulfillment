@@ -7,20 +7,20 @@
 
 from datetime import date, datetime, timedelta, time
 
-from allocmethod import ALLOC_METHOD, ALLOC_OPERATOR
 from dstrbntw.dstrbntw import Distribution_Network
 from dstrbntw.region import Region
-from parameters import ALLOC_END_TIME, ALLOC_PERIOD, ALLOC_START_TIME, CUT_OFF_TIME, END_OF_TOURS, NUMBER_OF_WORKDAYS, ORDER_PROCESSING_START, \
-                        ORDER_PROCESSING_END
+from parameters import ALLOC_END_TIME, ALLOC_START_TIME, CUT_OFF_TIME, END_OF_TOURS, NUMBER_OF_WORKDAYS                   
 from protocols.results import Result_Protocols
 from utilities.datetime import daterange, timerange
+from utilities.experiment import Experiment
 
 class Simulation:
 
-    def __init__(self, dstrb_ntw:Distribution_Network, results:Result_Protocols) -> None:
+    def __init__(self, dstrb_ntw:Distribution_Network, experiment:Experiment, results:Result_Protocols) -> None:
         
         # store objects
         self.dstrb_ntw = dstrb_ntw
+        self.experiment = experiment
         self.results = results
 
         # create an order allocation schedule for the simulation
@@ -34,9 +34,9 @@ class Simulation:
         '''Creates an allocation schedule (list) based on the parameter ALLOC_PERIOD.'''
 
         # init optimization schedule
-        allocation_schedule = [datetime.combine(ORDER_PROCESSING_START, time(0, 0, 0))]
+        allocation_schedule = [datetime.combine(self.experiment.start, time(0, 0, 0))]
 
-        for this_date in daterange(ORDER_PROCESSING_START, ORDER_PROCESSING_END + timedelta(days=1)):
+        for this_date in daterange(self.experiment.start, self.experiment.end + timedelta(days=1)):
             this_date:date
 
             # check if day is a workingday
@@ -44,7 +44,7 @@ class Simulation:
 
                 this_time = datetime.combine(this_date, ALLOC_START_TIME)
 
-                if this_date == ORDER_PROCESSING_END:
+                if this_date == self.experiment.end:
                     end_time = datetime.combine(this_date, CUT_OFF_TIME)
                 else:
                     end_time = datetime.combine(this_date, ALLOC_END_TIME)
@@ -55,7 +55,7 @@ class Simulation:
                     allocation_schedule.append(this_time)
 
                     # determine next cut-off for optimization
-                    this_time += ALLOC_PERIOD
+                    this_time += self.experiment.allocation_period
 
         return allocation_schedule
 
@@ -82,7 +82,7 @@ class Simulation:
         self.results.store_imported_trsct_eval(imported_trsct_eval, region.id)
 
         # allocate orders and check processability of sales
-        allocation = region.start_allocation(ALLOC_METHOD, current_time, ALLOC_OPERATOR)
+        allocation = region.start_allocation(self.experiment.allocation_method, current_time, self.experiment.allocation_operator)
 
         # export allocation 
         self.results.export_allocation(region.transform_allocation_array(allocation))
@@ -103,11 +103,11 @@ class Simulation:
             self.results.store_sales_evaluation(sales_evaluation, region.id, current_time)
             self.results.export_sales_evaluation(sales_evaluation)
 
-        region.terminate_allocation(ALLOC_METHOD.__type__)
+        region.terminate_allocation(self.experiment.allocation_method.__type__)
 
     def process_remaining_orders(self, region:Region, current_time:datetime) -> None:
 
-        '''Processes orders that were scheduled but not processed within OP_END_TIME on ORDER_PROCESSING_END.'''
+        '''Processes orders that were scheduled but not processed within OP_END_TIME on self.experiment.end(date).'''
 
         # evaluate orders that could not be allocated
         self.check_for_processings(region, current_time)
@@ -124,7 +124,7 @@ class Simulation:
 
         '''Carries out operations of the end of the day.'''
 
-        if current_time.date() == ORDER_PROCESSING_END:
+        if current_time.date() == self.experiment.end:
             self.process_remaining_orders(region, current_time)
 
         else:
@@ -153,7 +153,8 @@ class Simulation:
             
             if current_time.time() == ALLOC_END_TIME:
                 # reset all order acceptance booleans to True (in case they were set to False becase capacities were exhausted)
-                region.change_order_acceptance_status(True)          
+                region.change_order_acceptance_status(True)
+                region.define_delivery_day(datetime.combine(current_time + timedelta(days=1), time(0, 1, 0)))          
 
             if current_time == self.allocation_schedule[self.allocation_counter]:
                 self.allocate(region, current_time)                 
@@ -168,11 +169,11 @@ class Simulation:
 
     def start(self) -> None:
 
-        ''' Iterates through time between order_processing_start and order_processing_end 
+        ''' Iterates through time between self.experimet.start and self.experimet.end 
             and carries out actions at predefined timestamps.'''
 
         # days
-        for this_date in daterange(ORDER_PROCESSING_START, ORDER_PROCESSING_END + timedelta(days=1)):
+        for this_date in daterange(self.experiment.start, self.experiment.end + timedelta(days=1)):
             this_date:date
 
             # check if day is a workingday

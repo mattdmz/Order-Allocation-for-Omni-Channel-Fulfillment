@@ -209,13 +209,8 @@ class Longest_Stock_Duration(Rule):
 
             indexes[i] = node.index
 
-            for line in order.lines:
-                line:Order.Line
-                
-                # print(node.index, line.article.index, self.stock.current_level[line.article.index, node.index], self.stock.reserved[line.article.index, node.index], self.demand.__getattr__("avg", line.article.index, node.index))
-
-                stock_duration[i] = operator(list((self.stock.current_level[line.article.index, node.index] - self.stock.reserved[line.article.index, node.index])
-                                        / self.demand.__getattr__("avg", line.article.index, node.index) for line in order.lines))
+            stock_duration[i] = operator(list((self.stock.current_level[line.article.index, node.index] - self.stock.reserved[line.article.index, node.index])
+                                    / self.demand.__getattr__("avg", line.article.index, node.index) for line in order.lines))
 
 
         return indexes[stock_duration.argsort()[::-1]]

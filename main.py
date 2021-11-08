@@ -5,10 +5,11 @@
 
 ###############################################################################################
 
-from datetime import date
-from parameters import NUMBER_OF_TEST_PERIODS, ORDER_PROCESSING_START, ORDER_PROCESSING_END, TEST_DAYS
 
-def main(start:date=ORDER_PROCESSING_START, end:date=ORDER_PROCESSING_END) -> None:
+from utilities.experiment import Experiment
+
+
+def main(experiment:Experiment) -> None:
 
     ''' Initializes a distribution network mode with imported data.
         Tries to allocate orders and close sales for each day between start and end
@@ -22,17 +23,17 @@ def main(start:date=ORDER_PROCESSING_START, end:date=ORDER_PROCESSING_END) -> No
     from protocols.results import Result_Protocols
 
     try:
-        result_protocols = Result_Protocols()
+        result_protocols = Result_Protocols(experiment.output_dir_path, experiment.run_id)
     
     except OSError as err:
         print(err)       
 
     else:
         
-        distribution_network = Distribution_Network(start, end)
+        distribution_network = Distribution_Network(experiment.start, experiment.end)
 
         try:
-            distribution_network.imp_regional_data()
+            distribution_network.imp_regional_data(experiment.allocation_regions)
 
         except ImportModelDataError as err:
             print(err)
@@ -53,24 +54,8 @@ def main(start:date=ORDER_PROCESSING_START, end:date=ORDER_PROCESSING_END) -> No
 
                 result_protocols.init_results_dict(distribution_network.regions.keys())
                 
-                simulation = Simulation(distribution_network, result_protocols)
+                simulation = Simulation(distribution_network, experiment, result_protocols)
                 simulation.create_allocation_schedule()
                 simulation.start()
                 simulation.export_overall_results()
-
-if __name__ == "__main__":
-
-    if NUMBER_OF_TEST_PERIODS == None:
-
-        # run program with default ORDER_PROCESSING_START and ORDER_PROCESSING_END dates set in parameters
-        main()
-    
-    else:
-
-        # set list of day tuples (start date, end date) to run the program with
-        days_to_test = [(date(2019, 3, day), date(2019, 3, day-1+TEST_DAYS)) for day in range(1, NUMBER_OF_TEST_PERIODS, TEST_DAYS)]
-
-        # run program for all 
-        for day in days_to_test:
-            main(day[0], day[1])
 

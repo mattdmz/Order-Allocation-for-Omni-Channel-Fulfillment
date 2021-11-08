@@ -6,6 +6,7 @@ CREATE TABLE masterarbeit.articles(
     weight INT NOT NULL,
     min_order_quantity INT NOT NULL,
     sold_online BOOL,
+    start_stock_rate_str VARCHAR(15),
     PRIMARY KEY (id)
 );
 
@@ -26,15 +27,18 @@ INTO TABLE masterarbeit.articles
 
 #add column
 ALTER TABLE masterarbeit.articles
-	ADD COLUMN price DECIMAL(7,2) AFTER price_str;
+	ADD COLUMN price DECIMAL(7,2) AFTER price_str,
+    ADD COLUMN start_stock_rate DECIMAL(3,2) AFTER start_stock_rate_str;
 
 #convert string values to float values in new columns    
 UPDATE masterarbeit.articles
-	SET price = replace(price_str, ",", ".") + 0.0;
+	SET price = replace(price_str, ",", ".") + 0.0,
+        start_stock_rate = replace(start_stock_rate_str, ",", ".") + 0.0;
 
 #drop string columns
 ALTER TABLE masterarbeit.articles
-	DROP COLUMN price_str;
+	DROP COLUMN price_str,
+    DROP COLUMN start_stock_rate_str;
     
 #create table for articles sold online
 CREATE TABLE masterarbeit.articles_sold_online

@@ -104,7 +104,7 @@ class Order():
                         REGION_ID: region_id,
                         ARRIVAL_DATETIME: self.date_time,
                         ALLOCATION_DATETIME: self.allocation_time,
-                        PROC_DATETIME: proc_time if self.allocated_node is not None else "",
+                        PROC_DATETIME: proc_time if self.allocated_node is not None else None,
                         ALLOCATED_NODE_ID: self.allocated_node.id if self.allocated_node is not None else self.failure,
                         POTENTIAL_ONLINE_REVENUE: self.price,
                         ONLINE_REVENUE: self.price if self.allocated_node is not None else 0,
@@ -113,11 +113,11 @@ class Order():
                         DELIVERY_COSTS: delivery_costs,
                         DIMINUISHED_STOCK_VALUE: diminuished_stock_value,
                         PROFIT: self.price + diminuished_stock_value - supply_costs - processing_costs - delivery_costs if self.allocated_node is not None else 0,
+                        DELIVERED_ORDERS: 1 if self.allocated_node is not None else 0,
                         SAMEDAY_DELIVERY: self.delivered_sameday(proc_time),
                         RETRY: self.allocation_retried,
                         DELIVERY_DURATION: delivery_duration,
-                        DISTANCE: distance(self.customer.location, self.allocated_node.location) if self.allocated_node is not None else 0,
-                        DELIVERED_ORDERS: 1 if self.allocated_node is not None else 0
+                        DISTANCE: distance(self.customer.location, self.allocated_node.location) if self.allocated_node is not None else 0
                     }
 
         class Line():

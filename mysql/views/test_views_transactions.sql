@@ -20,11 +20,11 @@ SELECT * FROM orders as o
 
 
 #orders on day btw times in fc Region
-SET @start_datetime = "2019-03-01 00:00:00", @end_datetime = "2019-03-02 23:59:59"; 
+SET @start_datetime = "2019-03-01 00:00:00", @end_datetime = "2019-03-02 20:00:00", @fc_id = 1005;
 SELECT *
 FROM orders as o, customers as c
-WHERE cast(o.its_date as datetime) + cast(o.its_time as time) BETWEEN cast("2019-03-01 00:00:00" as datetime) AND cast("2019-03-01 23:59:59" as datetime) #start_datetime() and end_datetime()
+WHERE cast(o.its_date as datetime) + cast(o.its_time as time) BETWEEN cast(start_datetime() as datetime) AND cast(end_datetime()  as datetime) #start_datetime() and end_datetime()
 AND o.customer_id = c.id
-AND c.fc = 1001;
+AND c.fc = fc_id();
 
 								

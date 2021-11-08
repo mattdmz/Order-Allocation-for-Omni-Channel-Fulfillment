@@ -22,14 +22,12 @@ STRATEGY = "strategy"
 
 # file names
 
-RUN_ID =  datetime.now().strftime("%Y%m%d_%H%M%S")
-
-ALLOCATIONS_PROTOCOL_FILE_NAME = RUN_ID + "_allocations_protocol"
-DAILY_RESULTS_FILE_NAME = RUN_ID + "_daily_results"
-OVERALL_RESULTS_FILE_NAME = RUN_ID + "_overall_results"
-ORDERS_EVALUATION_FILE_NAME = RUN_ID + "_order_evaluation"
-PARAMETERS_FILE_NAME = RUN_ID + "_parameters"
-SALES_EVALUATION_FILE_NAME = RUN_ID + "_sales_evaluation"
+ALLOCATIONS_PROTOCOL_FILE_NAME = "_allocations_protocol"
+DAILY_RESULTS_FILE_NAME = "_daily_results"
+OVERALL_RESULTS_FILE_NAME = "_overall_results"
+ORDERS_EVALUATION_FILE_NAME = "_order_evaluation"
+PARAMETERS_FILE_NAME = "_parameters"
+SALES_EVALUATION_FILE_NAME = "_sales_evaluation"
 
 # ____________________________________________________________________________________________
 

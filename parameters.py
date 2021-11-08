@@ -10,19 +10,13 @@
 from datetime import date, time, timedelta
 
 from database.constants import FC, ZIP_REGION
-from dstrbntw.constants import A, B, C, FULFILLMENT_CENTER, IMPORTED_LEVEL, RNDM_BTWN_REORDER_AND_TARGET_LEVEL, SMALL_STORE, REGULAR_STORE, TARGET_LEVEL 
-
+from dstrbntw.constants import A, B, C, FULFILLMENT_CENTER, PREDEFINED_LEVEL, RNDM_BTWN_REORDER_AND_TARGET_LEVEL, SMALL_STORE, REGULAR_STORE, TARGET_LEVEL 
 
 # _________________________________________________________________________________________________________________________________________________
 
 # Allocation
 
-# period of time in which transactions (orders, sales) are collected and allocated/fulfilled
-ALLOC_PERIOD = timedelta(hours=3, minutes=0, seconds=0)
-ALLOC_REGIONS = "all"         # [LIST] of regions to allocated orders in, e.g. [1005]. All all regions should be considered tpye "all"
-ALREADY_ALLOCATED_THRESHOLD = 0.15   # -> relevant for Nearest_Already_Allocated_Nodes
-
-# _________________________________________________________________________________________________________________________________________________
+ALREADY_ALLOCATED_THRESHOLD = 0.15
 
 # Assortment and Stock
 
@@ -60,7 +54,7 @@ STOCK_HOLDING_RATE = {  SMALL_STORE: 0.03,
 }
 
 # Determines the start level of the stock
-STOCK_SEED = IMPORTED_LEVEL      # options: FIX_LEVEL, RNDM_BTWN_REORDER_AND_TARGET_LEVEL, TARGET_LEVEL, IMPORT 
+STOCK_SEED = PREDEFINED_LEVEL      # options: FIX_LEVEL, RNDM_BTWN_REORDER_AND_TARGET_LEVEL, TARGET_LEVEL, PREDEFINED_LEVEL 
 
 
 # _________________________________________________________________________________________________________________________________________________
@@ -137,13 +131,6 @@ SUBTRACT_EXPECTED_STOCK_DEMAND = True
 
 # _________________________________________________________________________________________________________________________________________________
 
-# Experiments
-
-TEST_DAYS = 2
-NUMBER_OF_TEST_PERIODS = None #5
-
-# _________________________________________________________________________________________________________________________________________________
-
 # Order Processing
 
 # start and end of order allocation
@@ -161,23 +148,20 @@ OP_CAPACITY = { SMALL_STORE: 0.83,   #50 orderlines/hour
                 FULFILLMENT_CENTER: 41  #2500 orderlines/hour
 }
 
+# end time of order processing  = latest possible start of delivery tour
+OP_END_TIME = { SMALL_STORE: time(19, 00, 0),
+                REGULAR_STORE: time(19, 30, 0),
+                FULFILLMENT_CENTER: time(20, 00, 0)  # -> replenishment of store must be made afterwards
+}
+
 # €/orderline
 ORDER_PROCESSING_RATE = {   SMALL_STORE: 0.5,
                             REGULAR_STORE: 0.35,
                             FULFILLMENT_CENTER: 0.2
 }
 
-# period of time used to execute orders
 ORDER_PROCESSING_START = date(2019, 3, 1)
-ORDER_PROCESSING_END = date(2019, 3, 31)
-
-
-
-# end time of order processing  = latest possible start of delivery tour
-OP_END_TIME = { SMALL_STORE: time(19, 00, 0),
-                REGULAR_STORE: time(19, 30, 0),
-                FULFILLMENT_CENTER: time(20, 00, 0)  # -> replenishment of store must be made afterwards
-}
+ORDER_PROCESSING_END = date(2019, 3, 2)
 
 # _________________________________________________________________________________________________________________________________________________
 

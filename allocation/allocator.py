@@ -20,7 +20,6 @@ from protocols.constants import ALLOC_ARR, ALLOCATION_DATETIME, BEST_OBJ_VALUE, 
 from transactions.orders import Order
 from transactions.sales import Sale
 from parameters import OP_END_TIME
-from utilities.datetime import delivered_on
 
 class Allocator:
 
@@ -128,7 +127,7 @@ class Allocator:
         prototype_delivery.approximate_routes(prototype_delivery.add_order(order))
 
         # schedule tour and its order processing
-        prototype_delivery.create_batches(delivered_on(self.current_time, self.nodes.__getattr__(NODE_TYPE, index=node_index)))
+        prototype_delivery.create_batches()
 
         # check if tour start after current_time to assure allocatability
         order_deliverable = prototype_delivery.on_time(self.current_time)
@@ -189,7 +188,7 @@ class Allocator:
             delivery.build_routes(node_type=order.allocated_node.node_type)
         
             # schedule tour and its order processing
-            delivery.create_batches(self.current_time)
+            delivery.create_batches()
 
     def prepare_evaluation(self) -> None:
 

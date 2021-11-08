@@ -41,6 +41,7 @@ class Node():
         self.location = Location(self.id, float(data[7]), float(data[8]))
         self.fc = data[9]
         self.supply_distance = float(data[10])
+        self.start_stock_rate = float(data[11])
 
         #set up order acceptance status
         self.accepting_orders = True
@@ -101,7 +102,7 @@ class Node():
 
         '''Sets node.delivery.day on current date + 1 day.'''
 
-        self.delivery.day = delivered_on(datetime.combine(current_time.date(), time(0, 1, 0)), self.node_type) 
+        self.delivery.day = delivered_on(datetime.combine(current_time.date() + timedelta(days = 1), time(0, 1, 0)), self.node_type) 
 
     def store_demand_analysis(self, abc_analysis_demand:Abc_Analysis)-> None:
 
@@ -146,6 +147,13 @@ class Nodes:
         '''Returns a list of route rates per node.'''
 
         return list(node.route_rate for node in self.dict.values())
+
+    @property
+    def start_stock_rates(self) -> list:
+
+        '''Returns a list of start stock rates per node.'''
+
+        return list(node.start_stock_rate for node in self.dict.values())
 
     @property
     def tour_durations(self) -> list:

@@ -25,7 +25,7 @@ from dstrbntw.errors import InitStockError, ImportTransactionsError
 from dstrbntw.nodes import Node, Nodes
 from dstrbntw.stock import Stock
 from parameters import EXP_INITIAL_STOCK, FIX_LEVEL, LISTING_LIMIT, ORDER_PROCESSING_END, STOCK_SEED
-from protocols.constants import ALLOC_ARR, ALLOCATION_DATETIME, NUMBER_OF_LINES, NUMBER_OF_ORDERS, \
+from protocols.constants import ALLOC_ARR, NUMBER_OF_LINES, NUMBER_OF_ORDERS, \
                                 POTENTIAL_OFFLINE_REVENUE, POTENTIAL_ONLINE_REVENUE
 from protocols.results import init_order_evaluation
 from transactions.orders import Order, Orders
@@ -47,13 +47,6 @@ class Region:
         self.orders = Orders()
         self.sales = Sales()
         self.demand = Demand()
-    
-    @property
-    def number_of_orders_to_process(self) -> int:
-
-        '''Returns the number of orders which are to be processed in the region.'''
-
-        return len(self.orders.list)
 
     def imp(self, db:Database, region_id:int, start:date=None, end:date=None) -> None:
         
@@ -128,9 +121,13 @@ class Region:
                     if node.abc_analysis_demand.result[article.index] >= LISTING_LIMIT[node.node_type]:
                         
                         # calculate and set reorder and target level
-                        self.stock.set_calculated_dispo_levels(article.index, node.index, node.abc_analysis_demand.categorize(article.index), self)
+                        self.stock.set_calculated_dispo_levels(article.index, node.index, node.abc_analysis_demand.categorize(article.index))
 
-            self.stock.current_level = self.stock.set_start_level(self.id)
+            # set start level
+            if STOCK_SEED == PREDEFINED_LEVEL:
+                self.stock.current_level = self.stock.set_start_level(self.nodes.start_stock_rates, self.articles.start_stock_rates)
+            else:
+                self.stock.current_level = self.stock.set_start_level()
 
             if STOCK_SEED == FIX_LEVEL:
                 self.stock.target_level = self.stock.set_fix_stock_level()
@@ -273,7 +270,7 @@ class Region:
                 order.failure = node_index
                 
                 # allocation retried and failed, protocol order as not allocated with the failure reason
-                order_evaluation = order.protocol(self.id, allocation[ALLOCATION_DATETIME])
+                order_evaluation = order.protocol(self.id, datetime(2099, 1, 1, 0, 0))
                 not_allocated_orders_evaluation = not_allocated_orders_evaluation.append(order_evaluation, ignore_index=True)
 
             elif node_index < 0 and not order.allocation_retried:                                                                         
@@ -295,16 +292,16 @@ class Region:
             if order.allocated_node == None:
                 
                 # allocation retried and failed, protocol order as not allocated with the failure reason
-                remaining_orders_evaluation = remaining_orders_evaluation.append(order.protocol(self.id, ""), ignore_index=True)
+                remaining_orders_evaluation = remaining_orders_evaluation.append(order.protocol(self.id, None), ignore_index=True)
 
         return remainig_orders_evaluation if len(remainig_orders_evaluation.index) > 0 else None
 
-    def batches_to_process(self, current_time:datetime) -> dict:
+    def nodes_with_batches_to_process(self, current_time:datetime) -> list:
 
         ''' Checks if there are order-batches to process and returns them.
             Sets order acceptance status to false if its order execution capacities are exhausted or cut_off_time is reached.'''
 
-        batches_to_process = {}
+        nodes_with_batches_to_process = []
 
         for node in self.nodes.dict.values():
             node:Node
@@ -312,8 +309,8 @@ class Region:
             # check if starting time for order processing and delivery for all allocated orders and nodes was reached.
             if current_time >= node.delivery.processing_start():
                 
-                # get batch to process
-                batches_to_process[node] = node.delivery.batch_to_process()
+                # save node where a batch is to process
+                nodes_with_batches_to_process.append(node)
 
                 if node.accepting_orders:
 
@@ -321,22 +318,22 @@ class Region:
                     node.delivery_restarts_tomorrow(current_time)
                     node.set_order_acceptance_status(False)
 
-                if len(node.delivery.batches) == 0:
+        return nodes_with_batches_to_process if nodes_with_batches_to_process != [] else None
 
-                    # reset delivery object as all batches were delivered
-                    node.reset_delivery()
-
-        return batches_to_process if batches_to_process != {} else None
-
-    def check_processability(self, batches:dict, current_time:datetime) -> None:
+    def check_processability(self, nodes_with_batches_to_process:list, current_time:datetime) -> None:
 
         ''' Stores True or False as order attribute if order is processable or not. 
             Removes order form delivery tour if not processable and reschedule tour
             without the delivery of the none processable order.'''
 
-        for batch in batches.values():
+        not_processable_orders = []
 
-            for order in batch.orders:
+        for node in nodes_with_batches_to_process:
+            node:Node
+            
+            batch_to_process = node.delivery.batches[0]
+
+            for order in batch_to_process.orders:
                 order:Order
 
                 # check if stock is available to process all orders
@@ -348,57 +345,70 @@ class Region:
                     if not processable:
 
                         # Order can not be processed and delivered as there is not enough stock available.
-                        # Order remains in the list of orders to be allocated and is allocated at a different node during the
-                        # next allocation cycle.
-
-                        # remove order from delivery tour
-                        if order in batch.orders:
-                            order.allocated_node.delivery.remove_order(order)
-
-                            # rebuild delivery routes if there is orders remaining to deliver
-                            if len(order.allocated_node.delivery.orders_to_deliver) > 1:
-                                    order.allocated_node.delivery.build_routes(node_type=order.allocated_node.node_type)
-
-                            # reschedule delivery to get the correct delivery times of the new route without the order that could not be processed
-                            order.allocated_node.delivery.create_batches(delivered_on(current_time, order.allocated_node.node_type))
-
-                        # reset allocation
-                        order.allocated_node = None
-                        order.allocation_time = None
-
+                        not_processable_orders.append(order)
                         break
                 
                 order.processable = processable
 
-    def process_orders(self, batches:dict, current_time:datetime) -> DataFrame:
+        for order in not_processable_orders:
 
-        '''Processes batches of orders and returns evaluation.'''
+            # Order remains in the list of orders to be allocated and is allocated at a different node during the next allocation cycle.
+
+            # remove order from delivery tour
+            order.allocated_node.delivery.remove_order(order)
+
+            # rebuild delivery routes if there is orders remaining to deliver
+            if len(order.allocated_node.delivery.orders_to_deliver) > 1:
+                
+                # rebuild the routes
+                order.allocated_node.delivery.build_routes(node_type=order.allocated_node.node_type)
+
+                # reschedule delivery to get the correct delivery times of the new route without the order that could not be processed
+                order.allocated_node.delivery.create_batches(delivered_on(current_time, order.allocated_node.node_type))
+
+            # reset allocation
+            order.allocated_node = None
+            order.allocation_time = None
+
+    def process_orders(self, nodes_with_batches_to_process:list, current_time:datetime) -> DataFrame:
+
+        ''' Processes batches of orders and returns evaluation.
+            Resets delivery objet if all batches of node were processed.'''
 
         #init DataFrame to store results
         processing_evaluation = DataFrame(columns=init_order_evaluation(0).keys())
 
-        for batch in batches.values():
+        for node in nodes_with_batches_to_process:
+            node:Node
+
+            batch = node.delivery.batch_to_process()
+
+            if batch is not None:
+
+                # reset delivery objet if all batches of node were processed
+                if len(node.delivery.batches) == 0:
+                    node.reset_delivery() 
             
-            # compute delivery costs of tour and divide by number of orders to deliver
-            delivery_costs = batch.delivery_costs / len(batch.orders)
-            delivery_duration = batch.delivery_duration / len(batch.orders) 
+                # compute delivery costs of tour and divide by number of orders to deliver
+                delivery_costs = batch.delivery_costs / len(batch.orders)
+                delivery_duration = batch.delivery_duration / len(batch.orders) 
 
-            # process orders marked as processable
-            for order in batch.orders:
-                order:Order
+                # process orders marked as processable
+                for order in batch.orders:
+                    order:Order
 
-                if order.processable:
+                    if order.processable:
 
-                    # consume stock            
-                    for line in order.lines:
-                        line:Order.Line
+                        # consume stock            
+                        for line in order.lines:
+                            line:Order.Line
 
-                        self.stock.cancel_reservation(line.article.index, order.allocated_node.index, line.quantity)
-                        self.stock.consume(line.article.index, order.allocated_node.index, line.quantity)
-                    
-                    order_evaluation = order.protocol(self.id, current_time, delivery_costs=delivery_costs, delivery_duration=delivery_duration, \
-                                                      diminuished_stock_value=order.pieces * order.allocated_node.stock_holding_rate)
-                    processing_evaluation = processing_evaluation.append(order_evaluation, ignore_index=True)                                                              
+                            self.stock.cancel_reservation(line.article.index, order.allocated_node.index, line.quantity)
+                            self.stock.consume(line.article.index, order.allocated_node.index, line.quantity)
+                        
+                        order_evaluation = order.protocol(self.id, current_time, delivery_costs=delivery_costs, delivery_duration=delivery_duration, \
+                                                        diminuished_stock_value=order.pieces * order.allocated_node.stock_holding_rate)
+                        processing_evaluation = processing_evaluation.append(order_evaluation, ignore_index=True)                                                            
 
         return processing_evaluation
 
@@ -407,15 +417,15 @@ class Region:
         '''returns the evaluation of the batches (orders) processed'''
 
         #check if order processing and delivery must be executed
-        batches_to_process = self.batches_to_process(current_time)
+        nodes_with_batches_to_process = self.nodes_with_batches_to_process(current_time)
 
-        if batches_to_process is not None:
+        if nodes_with_batches_to_process is not None:
             
             # check if stock reserved is still available
-            self.check_processability(batches_to_process, current_time)
+            self.check_processability(nodes_with_batches_to_process, current_time)
 
             # calculate revenue generated from orders and subtract order processing costs
-            return self.process_orders(batches_to_process, current_time)
+            return self.process_orders(nodes_with_batches_to_process, current_time)
 
         return None
 

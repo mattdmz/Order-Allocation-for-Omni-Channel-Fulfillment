@@ -16,14 +16,13 @@ from dstrbntw.demand import Demand
 from parameters import FIX_LEVEL, PLANED_STOCK_DURATION, RPL_CYCLE_DURATION, STOCK_BETA_SERVICE_DEGREE, STOCK_SEED, SUBTRACT_EXPECTED_STOCK_DEMAND
 from transactions.orders import Order
 from utilities.expdata import write_numpy_array
-from utilities.impdata import from_csv
 
 class Stock():
 
     ''' Stock of a region. Dispo rule used: (T, s, S)-Rule 
         (control inteval = 1 day, s = reorder level, S = target level).'''
 
-    def __init__(self, empty_arr:array, holding_rates:array, demand:Demand):
+    def __init__(self, empty_arr:array, holding_rates:list, demand:Demand):
 
         ''' Inits stock for all nodes of a region.'''
 
@@ -36,7 +35,7 @@ class Stock():
         self.reserved = copy(empty_arr)
         self.current_level = None
         
-        self.holding_rates = holding_rates
+        self.holding_rates = array(holding_rates)
 
     @property
     def holding_costs(self) -> float:
@@ -68,7 +67,7 @@ class Stock():
         
         return fix_level 
 
-    def set_start_level(self, region_id:int=None) -> array:
+    def set_start_level(self, node_start_stock_rates:list=None, article_start_stock_rates:list=None) -> array:
 
         '''Returns an array with start level of stock based for each node based on STOCK_SEED parameter.'''
 
@@ -78,13 +77,13 @@ class Stock():
         elif STOCK_SEED == TARGET_LEVEL:
             return copy(self.target_level)
 
-        elif STOCK_SEED == IMPORTED_LEVEL:
-            return array(from_csv(CURRENT_STOCK_LEVEL + "_" + str(region_id), read_headers=True), dtype=int)
+        elif STOCK_SEED == PREDEFINED_LEVEL: # set between 70% and 100% of the target level for each element
+            return self.target_level * (array(node_start_stock_rates) + array(article_start_stock_rates))
 
-        else:
+        else: # FIX_LEVEL
             return self.set_fix_stock_level()
 
-    def set_calculated_dispo_levels(self, article_index:int, node_index:int, abc_category:str, region) -> None:
+    def set_calculated_dispo_levels(self, article_index:int, node_index:int, abc_category:str) -> None:
 
         ''' Calculates and sets reorder and start level stock of each each article to be listed at each node.
             Determines and sets also start level of stock.'''
@@ -159,8 +158,8 @@ class Stock():
 
         '''Replenishes stock to target level if it fell below the reorder level and returns the number of replenishments.'''
         
-        replenishments = sum(self.current_level < self.reorder_level)
-        self.current_level = where(self.current_level < self.reorder_level, self.target_level, self.current_level)
+        replenishments = sum(self.current_level - self.reserved < self.reorder_level)
+        self.current_level = where(self.current_level - self.reserved < self.reorder_level, self.target_level, self.current_level)
 
         return replenishments
 

@@ -11,19 +11,19 @@ from typing import Union
 from protocols.constants import *
 from utilities.expdata import create_dir, write_results, write_df, get_parms, write_dict
 
-def create_output_dir_and_files() -> None:
+def create_output_dir_and_files(experiment_dir_path:str, run_id:str) -> None:
 
-    ''' Creates a directory with a uuid to export results.
+    ''' Creates a directory at experiment_dir_path.
         Creates the files to store results into.
         Returns the directory path.'''
 
-    dir_path = create_dir(RUN_ID)
+    dir_path = create_dir(experiment_dir_path)
 
-    write_results(init_allocation_protocol(""), ALLOCATIONS_PROTOCOL_FILE_NAME, dir_path)
-    write_results(init_order_evaluation(""), ORDERS_EVALUATION_FILE_NAME, dir_path)
-    write_results(init_sales_evaluation(""), SALES_EVALUATION_FILE_NAME, dir_path)
-    write_results(init_results_evaluation(""), DAILY_RESULTS_FILE_NAME, dir_path)
-    write_results(init_results_evaluation(""), OVERALL_RESULTS_FILE_NAME, dir_path)
+    write_results(init_allocation_protocol(""), run_id + ALLOCATIONS_PROTOCOL_FILE_NAME, dir_path)
+    write_results(init_order_evaluation(""), run_id + ORDERS_EVALUATION_FILE_NAME, dir_path)
+    write_results(init_sales_evaluation(""), run_id + SALES_EVALUATION_FILE_NAME, dir_path)
+    write_results(init_results_evaluation(""), run_id + DAILY_RESULTS_FILE_NAME, dir_path)
+    write_results(init_results_evaluation(""), run_id + OVERALL_RESULTS_FILE_NAME, dir_path)
 
     return dir_path
 
@@ -57,9 +57,9 @@ def init_order_evaluation(value_to_set) -> dict:
                 ORDER_PROCESSING_COSTS: value_to_set, 
                 DELIVERY_COSTS: value_to_set,
                 DIMINUISHED_STOCK_VALUE: value_to_set, 
-                PROFIT: value_to_set, 
+                PROFIT: value_to_set,
+                DELIVERED_ORDERS: value_to_set, 
                 SAMEDAY_DELIVERY: value_to_set,
-                DELIVERED_ORDERS: value_to_set,
                 RETRY: value_to_set,
                 DELIVERY_DURATION: value_to_set,  
                 DISTANCE: value_to_set
@@ -101,10 +101,10 @@ def init_results_evaluation(value_to_set) -> dict:
                 DELIVERY_COSTS: value_to_set,
                 PROFIT: value_to_set,
                 STOCK_HOLDING_COSTS: value_to_set,
-                SAMEDAY_DELIVERY: value_to_set, 
-                SAMEDAY_DELIVERY_RATE: value_to_set,
                 NUMBER_OF_ORDERS: value_to_set,
                 DELIVERED_ORDERS: value_to_set,
+                SAMEDAY_DELIVERY: value_to_set, 
+                SAMEDAY_DELIVERY_RATE: value_to_set,
                 RETRY: value_to_set,
                 DELIVERY_DURATION: value_to_set,
                 AVG_DELIVERY_DURATION: value_to_set,
@@ -153,10 +153,12 @@ def evaluate_results(results:dict) -> dict:
 
 class Result_Protocols:
 
-    def __init__(self) -> None:
+    def __init__(self, experiment_dir_path:str, run_id:str) -> None:
         
-        # store path to output directory
-        self.output_dir_path = create_output_dir_and_files()
+        '''Sets a run id with the current datetime and creates an output directory with the result protocol files.'''
+        
+        self.run_id =  run_id
+        self.output_dir_path = create_output_dir_and_files(experiment_dir_path, self.run_id)
 
     def init_results_dict(self, regions:list) -> None:
 
@@ -240,19 +242,19 @@ class Result_Protocols:
 
         '''Exports order processing results to created file.'''
 
-        write_df(DataFrame.from_dict([allocation]), ALLOCATIONS_PROTOCOL_FILE_NAME, dir_path=self.output_dir_path, mode="a")
+        write_df(DataFrame.from_dict([allocation]), self.run_id + ALLOCATIONS_PROTOCOL_FILE_NAME, dir_path=self.output_dir_path, mode="a")
 
     def export_orders_evaluation(self, orders_evaluation:DataFrame) -> None:
 
         '''Exports order evalution to created file.'''
 
-        write_df(orders_evaluation, ORDERS_EVALUATION_FILE_NAME, dir_path=self.output_dir_path, mode="a")
+        write_df(orders_evaluation, self.run_id + ORDERS_EVALUATION_FILE_NAME, dir_path=self.output_dir_path, mode="a")
 
     def export_sales_evaluation(self, sales_evaluation:dict) -> None:
 
         '''Exports order processing results to created file.'''
 
-        write_df(DataFrame.from_dict([sales_evaluation]), SALES_EVALUATION_FILE_NAME, dir_path=self.output_dir_path, mode="a")
+        write_df(DataFrame.from_dict([sales_evaluation]), self.run_id + SALES_EVALUATION_FILE_NAME, dir_path=self.output_dir_path, mode="a")
 
     def export_daily_results(self, region_id:int) -> None:
         
@@ -260,7 +262,7 @@ class Result_Protocols:
             Resets counter.'''
 
         write_df(DataFrame.from_dict([evaluate_results(self.daily_results[region_id])]), \
-                                        DAILY_RESULTS_FILE_NAME, dir_path=self.output_dir_path, mode="a")
+                                        self.run_id + DAILY_RESULTS_FILE_NAME, dir_path=self.output_dir_path, mode="a")
 
     def export_overall_results(self) -> None:
         
@@ -271,11 +273,11 @@ class Result_Protocols:
             region_id:int
         
             write_df(DataFrame.from_dict([evaluate_results(self.overall_results[region_id])]), \
-                                            OVERALL_RESULTS_FILE_NAME, dir_path=self.output_dir_path, mode="a")
+                                            self.run_id + OVERALL_RESULTS_FILE_NAME, dir_path=self.output_dir_path, mode="a")
 
     def export_parameters_used(self) -> None:
 
         '''Exports the parameters used for this run to the created folder.'''
 
-        write_dict(get_parms(), PARAMETERS_FILE_NAME, dir_path=self.output_dir_path)
+        write_dict(get_parms(), self.run_id + PARAMETERS_FILE_NAME, dir_path=self.output_dir_path)
     

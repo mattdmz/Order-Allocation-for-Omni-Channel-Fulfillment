@@ -32,6 +32,8 @@ class Article:
         self.volume = float(data[2])
         self.weight = float(data[3])
         #self.min_order_quantity = data[4]
+        #self.sold_omline = data[5]
+        self.start_stock_rate = float(data[6])
 
 
 class Articles:
@@ -40,6 +42,13 @@ class Articles:
 
     def __init__(self) -> None:
         pass
+
+    @property
+    def start_stock_rates(self) -> list:
+
+        '''Returns a list of lists of start stock rates per article.'''
+
+        return list([article.start_stock_rate] for article in self.dict.values())
 
     def imp(self, db:Database, start:date=None, end:date=None, region_id:int=None) -> None:
 
@@ -81,6 +90,7 @@ class Articles:
         '''Returns a list of all article_indexes'''
 
         return list(article.index for article in self.dict.values())
+
 
 
         

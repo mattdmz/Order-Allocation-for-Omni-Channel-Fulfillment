@@ -44,7 +44,7 @@ B = "b"
 C = "c"
 RNDM_BTWN_REORDER_AND_TARGET_LEVEL = "random_between_reorder_and_target_level"
 TARGET_LEVEL = "target_level"
-IMPORTED_LEVEL = "imported_level"
+PREDEFINED_LEVEL = "predefined_level"
 
 # ____________________________________________________________________________________________
 
