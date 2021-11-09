@@ -49,7 +49,6 @@ def from_csv(file_name:str, dir:str=INPUT_DIR, read_headers:bool=False):
 
 
 
-
         
 
 
