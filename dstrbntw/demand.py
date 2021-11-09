@@ -9,6 +9,7 @@ from datetime import datetime
 from math import ceil
 from numpy import array
 
+from parameters import RPL_CYCLE_DURATION
 from utilities.datetime import time_diff
 
 class Demand():
@@ -36,7 +37,9 @@ class Demand():
         ''' Returns the expected reounded demand for the remaining time of the day (12h) for a specific article at a specific node
             if SUBTRACT_EXPECTED_STOCK_DEMAND == True else returns 0.'''
 
-        return int(ceil(self.__getattr__("avg", article_index, node_index) / 720 * time_diff(op_end_time, current_time)))
+        avg_demand = self.__getattr__("avg", article_index, node_index)
+
+        return int(ceil( avg_demand / (720 * time_diff(op_end_time, current_time))) + avg_demand if current_time.date().isoweekday() % RPL_CYCLE_DURATION != 0 else 0)
 
 
 

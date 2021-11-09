@@ -8,7 +8,6 @@
 
 from datetime import datetime
 from numpy import append, argsort, array
-from statistics import median
 from typing import Tuple
 
 from allocation.allocator import Allocator
@@ -22,7 +21,7 @@ class Rule(Allocator):
 
     '''Parent class with allocation logic for all allocation rules.'''
 
-    def __init__(self, region:Region, current_time:datetime, operator:str, main)-> None:
+    def __init__(self, region:Region, current_time:datetime, main)-> None:
 
         ''' Creates a chronological list of orders and sales to process.
             Allocates orders rule based.
@@ -30,9 +29,6 @@ class Rule(Allocator):
             Stores allocation. '''
 
         super().__init__(region, current_time)
-
-        # store alloc operator of child class
-        self.operator = operator
 
         # store main method of child class
         self.main = main
@@ -69,24 +65,6 @@ class Rule(Allocator):
         else:
             return self.orders.list
 
-    def min(self, order:Order) -> array:
-
-        ''' Calls the main method of the child class applying the MIN operator.'''
-
-        return self.main(order, min)
-
-    def max(self, order:Order) -> array:
-
-        ''' Calls the main method of the child class applying the MAX operator.'''
-
-        return self.main(order, max)
-
-    def median(self, order:Order) -> array:
-
-        ''' Calls the main method of the child class applying the MEDIAN operator.'''
-
-        return self.main(order, median)
-
     def apply(self, order:Order) -> int:
 
         ''' Applies the rule stored in self.alloc_func.
@@ -96,7 +74,7 @@ class Rule(Allocator):
         best_feedback = -1000
 
         # get a ranking of node indexes based on the ALLOC_METHOD and ALLOC_FUNC defined in the parameters.
-        ranked_nodes = getattr(self, self.operator)(order)
+        ranked_nodes = self.main(order)
 
         # try to allocate order. Start with node index ranked 1st.
         for node_index in ranked_nodes:

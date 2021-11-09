@@ -12,13 +12,12 @@ from configs import OUTPUT_DIR
 
 class Experiment:
 
-    def __init__(self, allocation_period:timedelta, allocation_regions:list, allocation_operator:str) -> None:
+    def __init__(self, allocation_period:timedelta, allocation_regions:list) -> None:
         
         '''Sets parameters for the experiment'''
 
         self.allocation_period = allocation_period
         self.allocation_regions = allocation_regions
-        self.allocation_operator = allocation_operator
 
     def set_parameters(self, start:date, end:date, allocation_method:object) -> None:
         

@@ -8,6 +8,7 @@
 
 
 from datetime import date, time, timedelta
+from numpy.lib.function_base import median
 
 from database.constants import FC, ZIP_REGION
 from dstrbntw.constants import A, B, C, FULFILLMENT_CENTER, PREDEFINED_LEVEL, RNDM_BTWN_REORDER_AND_TARGET_LEVEL, SMALL_STORE, REGULAR_STORE, TARGET_LEVEL 
@@ -17,6 +18,7 @@ from dstrbntw.constants import A, B, C, FULFILLMENT_CENTER, PREDEFINED_LEVEL, RN
 # Allocation
 
 ALREADY_ALLOCATED_THRESHOLD = 0.15
+ALLOC_OPERATOR = median
 
 # Assortment and Stock
 
@@ -32,9 +34,9 @@ LISTING_LIMIT = {   SMALL_STORE: 0,         # {1 >= SMALL_STORE >= REGULAR_STORE
 
 # planned duration of stock calculated in addition to replenishment cycle duration (e.g. CYCLE_DURATION= 1 day + PLANED_STOCK_DURATION = 2 days  
 # --> pursued stock duration = 3 days)
-PLANED_STOCK_DURATION = {   A: 3,    #{int >= 1}
-                            B: 5,    #{int >= 1}
-                            C: 7      #{int >= 1}
+PLANED_STOCK_DURATION = {   A: 2,    #{int >= 1}
+                            B: 4,    #{int >= 1}
+                            C: 6      #{int >= 1}
 }
 
 # Determines the limit for a categorization between A and B / B and C level based on cumulated relative demand
@@ -174,7 +176,7 @@ MAX_PAL_VOLUME = 1728000
 PAL_RATE = 2
 
 # dureation of replenishment cyle in days
-RPL_CYCLE_DURATION =   1 #{1 - 30}
+RPL_CYCLE_DURATION =   2 #{1 - 30}
 
 # _________________________________________________________________________________________________________________________________________________
 

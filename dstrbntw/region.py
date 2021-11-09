@@ -9,7 +9,7 @@
 from copy import deepcopy
 from datetime import date, datetime
 from mysql.connector.errors import DatabaseError
-from numpy import array, zeros
+from numpy import array, zeros, sum
 from pandas import DataFrame
 
 from allocation.constants import RULE_BASED
@@ -24,7 +24,7 @@ from dstrbntw.demand import Demand
 from dstrbntw.errors import InitStockError, ImportTransactionsError
 from dstrbntw.nodes import Node, Nodes
 from dstrbntw.stock import Stock
-from parameters import EXP_INITIAL_STOCK, FIX_LEVEL, LISTING_LIMIT, ORDER_PROCESSING_END, STOCK_SEED
+from parameters import EXP_INITIAL_STOCK, FIX_LEVEL, LISTING_LIMIT, ORDER_PROCESSING_END, RPL_CYCLE_DURATION, STOCK_SEED
 from protocols.constants import ALLOC_ARR, NUMBER_OF_LINES, NUMBER_OF_ORDERS, \
                                 POTENTIAL_OFFLINE_REVENUE, POTENTIAL_ONLINE_REVENUE
 from protocols.results import init_order_evaluation
@@ -131,6 +131,9 @@ class Region:
 
             if STOCK_SEED == FIX_LEVEL:
                 self.stock.target_level = self.stock.set_fix_stock_level()
+
+            # determine which articles are in the assortement
+            self.stock.is_listed = self.stock.current_level > 0
 
             if EXP_INITIAL_STOCK:
                 self.stock.export(self.id)
@@ -245,12 +248,12 @@ class Region:
 
         return imported_trsct_eval
 
-    def start_allocation(self, allocator, current_time:datetime, alloc_func) -> dict:
+    def start_allocation(self, allocator, current_time:datetime) -> dict:
 
         ''' Returns an allocation made with the allocator passed (rule-based allocator or an optimizer).'''
         
         # start allocation with the allocator passed (rule-based allocator or an optimizer)
-        return allocator(self, current_time, alloc_func).allocation
+        return allocator(self, current_time).allocation
 
     def determine_not_allocated_orders(self, allocation:dict, current_time:datetime) -> DataFrame:
 
@@ -320,7 +323,7 @@ class Region:
 
         return nodes_with_batches_to_process if nodes_with_batches_to_process != [] else None
 
-    def check_processability(self, nodes_with_batches_to_process:list, current_time:datetime) -> None:
+    def check_processability(self, nodes_with_batches_to_process:list) -> None:
 
         ''' Stores True or False as order attribute if order is processable or not. 
             Removes order form delivery tour if not processable and reschedule tour
@@ -364,7 +367,7 @@ class Region:
                 order.allocated_node.delivery.build_routes(node_type=order.allocated_node.node_type)
 
                 # reschedule delivery to get the correct delivery times of the new route without the order that could not be processed
-                order.allocated_node.delivery.create_batches(delivered_on(current_time, order.allocated_node.node_type))
+                order.allocated_node.delivery.create_batches()
 
             # reset allocation
             order.allocated_node = None
@@ -422,7 +425,7 @@ class Region:
         if nodes_with_batches_to_process is not None:
             
             # check if stock reserved is still available
-            self.check_processability(nodes_with_batches_to_process, current_time)
+            self.check_processability(nodes_with_batches_to_process)
 
             # calculate revenue generated from orders and subtract order processing costs
             return self.process_orders(nodes_with_batches_to_process, current_time)
@@ -487,17 +490,28 @@ class Region:
 
         return sameday_deliveries
 
+    def determine_out_of_stock_situations(self) -> int:
+
+        '''Determines the number of articles out of stock in the whole region.'''
+
+        return sum((self.stock.current_level == 0) * self.stock.is_listed)
+
     def calc_stock_holding_costs(self) -> float:
         
         ''' Returns stock holding costs for this day.'''
         
         return self.stock.holding_costs
 
-    def check_for_replenishments(self) -> int:
+    def check_for_replenishments(self,  current_time:datetime) -> int:
 
-        '''Returns the number of replenishments carried out.'''
-        
-        return self.stock.replenish()
+        '''Returns the number of replenishments carried out.
+            Replenishmes only on replenishment day, which is claculated following the RPL_CYCLE_DURATION.'''
+
+        if current_time.date().isoweekday() % RPL_CYCLE_DURATION  == 0:
+            return self.stock.replenish()
+        else:
+            
+            return 0
 
     def reschedule_allocation_of_unallocated_orders(self) -> None:
 

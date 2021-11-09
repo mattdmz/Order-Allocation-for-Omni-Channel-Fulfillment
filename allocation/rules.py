@@ -6,7 +6,7 @@
 ###############################################################################################
 
 
-from datetime import datetime, time
+from datetime import datetime
 from math import  sqrt
 from numpy import array, concatenate, float64, zeros 
 from scipy.stats import norm
@@ -16,7 +16,7 @@ from allocation.constants import RULE_BASED
 from dstrbntw.location import distance
 from dstrbntw.nodes import Node
 from dstrbntw.region import Region
-from parameters import ALREADY_ALLOCATED_THRESHOLD, ORDER_PROCESSING_START, OP_END_TIME, RPL_CYCLE_DURATION
+from parameters import ALLOC_START_TIME, ALLOC_OPERATOR, ALREADY_ALLOCATED_THRESHOLD, ORDER_PROCESSING_START, OP_END_TIME, RPL_CYCLE_DURATION
 from transactions.orders import Order
 from utilities.datetime import time_diff
 
@@ -27,15 +27,15 @@ class Nearest_Nodes(Rule):
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, operator:str=None) -> None:
+    def __init__(self, region:Region, current_time:datetime=None) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, operator, self.main)
+        super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order, operator:str) -> array:
+    def main(self, order:Order) -> array:
 
-        ''' Returns an numpy array with all node indexes (of nodes accepting orders only)
+        ''' Returns an numpy array with all node indexes 
             in ascending order based on the distance to the order's delivery location.'''
 
         indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
@@ -51,19 +51,50 @@ class Nearest_Nodes(Rule):
         return indexes[distances.argsort()]
 
 
+class Chepest_Direct_Delivery(Rule):
+
+    ''' Allocates an order to the node having the least transportation costs.'''
+
+    __type__ = RULE_BASED
+
+    def __init__(self, region:Region, current_time:datetime=None) -> None:
+
+        '''Inits parent class.'''
+        
+        super().__init__(region, current_time, self.main)
+
+    def main(self, order:Order) -> array:
+
+        ''' Returns an numpy array with all node indexes 
+            in ascending order based on the the order's delivery costs is the delivery vehicle was driving there directly.'''
+
+        indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
+        trsp_costs = zeros(shape=(len(self.nodes.dict)), dtype=float64)
+
+        for i, node in enumerate(self.nodes.dict.values()):
+            i:int
+            node:Node
+
+            indexes[i] = node.index
+            trsp_costs[i] = distance(node.location, order.customer.location) * node.route_rate \
+                        + node.tour_rate if len(node.delivery.batches) == 0 else 0
+        
+        return indexes[trsp_costs.argsort()]
+
+
 class Nearest_Already_Allocated_Nodes(Rule):
 
     ''' Allocates an order to the closest node that has already another order assigned and does not violate the allocaiton restrictions.'''
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
+    def __init__(self, region:Region, current_time:datetime) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, operator, self.main)
+        super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order, operator:str) -> array:
+    def main(self, order:Order) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on the distance to the other already allocated order's delivery location.'''
@@ -95,49 +126,19 @@ class Nearest_Already_Allocated_Nodes(Rule):
         return concatenate((indexes[distances.argsort()], not_allocated_indexes[not_allocated_distances.argsort()]))
 
 
-class Smallest_Demand_Variance(Rule):
-
-    ''' Allocates an order to the node with the smallest max (min/median) demand variance for all the articles ordered.'''
-
-    __type__ = RULE_BASED
-
-    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
-
-        '''Inits parent class.'''
-        
-        super().__init__(region, current_time, operator, self.main)
-
-    def main(self, order:Order, operator:str) -> array:
-
-        ''' Returns an numpy array with all node indexes
-            in ascending order based on the operator variance.'''
-
-        indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
-        variances = zeros(shape=(len(self.nodes.dict)), dtype=float64)
-
-        for i, node in enumerate(self.nodes.dict.values()):
-            i:int
-            node:Node
-
-            indexes[i] = node.index
-            variances[i] = operator(self.demand.__getattr__("var", line.article.index, node.index) for line in order.lines)
-
-        return indexes[variances.argsort()]
-
-
 class Allocation_Of_Nearest_Order(Rule):
 
     ''' Allocates an order to the node where the the order's delivery location is the least distant from was allocated to.'''
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
+    def __init__(self, region:Region, current_time:datetime) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, operator, self.main)
+        super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order, operator:str) -> array:
+    def main(self, order:Order) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on the smallest distance 
@@ -188,13 +189,13 @@ class Longest_Stock_Duration(Rule):
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
+    def __init__(self, region:Region, current_time:datetime) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, operator, self.main)
+        super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order, operator:str) -> array:
+    def main(self, order:Order) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on the operator (min, median, max) of stock duration 
@@ -209,7 +210,7 @@ class Longest_Stock_Duration(Rule):
 
             indexes[i] = node.index
 
-            stock_duration[i] = operator(list((self.stock.current_level[line.article.index, node.index] - self.stock.reserved[line.article.index, node.index])
+            stock_duration[i] = ALLOC_OPERATOR(list((self.stock.current_level[line.article.index, node.index] - self.stock.reserved[line.article.index, node.index])
                                     / self.demand.__getattr__("avg", line.article.index, node.index) for line in order.lines))
 
 
@@ -222,41 +223,43 @@ class Dynamic_1(Rule):
 
     __type__ = RULE_BASED
 
-    def __init__(self, region:Region, current_time:datetime, operator:str) -> None:
+    def __init__(self, region:Region, current_time:datetime) -> None:
 
         '''Inits parent class.'''
         
-        super().__init__(region, current_time, operator, self.main)
+        super().__init__(region, current_time, self.main)
 
     def remaining_days_until_replenishment(self, node_type:int) -> float:
         
         ''' Support method for Dynamic1.
             Returns the remaining number in days until the next replenishment as floating point value.'''
         
-        shops_open = datetime.combine(self.current_time.date(), time(8, 0, 0))
+        shops_open = datetime.combine(self.current_time.date(), ALLOC_START_TIME)
         full_days_to_next_replenishment =  (RPL_CYCLE_DURATION - ((self.current_time.date() - ORDER_PROCESSING_START).days % RPL_CYCLE_DURATION) - 1)
         opening_minutes = time_diff(shops_open, OP_END_TIME[node_type])
         remaining_time_current_day = time_diff(shops_open, self.current_time)
 
         return (full_days_to_next_replenishment * opening_minutes + remaining_time_current_day) / opening_minutes
 
-    def expected_stock_level_at_end_of_rpm_cyle(self, article_index:int, node_index:int, days_until_replenishment:int) -> int:
+    def expected_stock_level_at_end_of_rpm_cyle(self, article_index:int, node_index:int, node_type:int) -> int:
 
         ''' Support method for Dynamic1.
             Returns the expected stock level for a certain article at the end 
             of the replenishment cycle == before replenishment.'''
         
-        return self.stock.current_level[article_index, node_index] - (self.demand.__get__("avg", article_index, node_index) * days_until_replenishment) \
-                / (sqrt(self.demand.__get__("var", article_index, node_index)) * sqrt(days_until_replenishment))
+        return     self.stock.current_level[article_index, node_index] \
+                -  self.stock.reserved[article_index, node_index] \
+                - (self.demand.expected(article_index, node_index, self.current_time, datetime.combine(self.current_time.date(), OP_END_TIME[node_type]) \
+                / (sqrt(self.demand.__get__("var", article_index, node_index)) * sqrt(self.current_time.date().isoweekday() % RPL_CYCLE_DURATION))))
 
-    def marg_holding_backorder_cost(self, order:Order, node:Node, operator:str):
+    def marg_holding_backorder_cost(self, order:Order, node:Node):
         
         ''' Support method for Dynamic1.
             Returns marginal holding and backorder costs of maintaining 
             one additional unit of article article_index at node node_index.'''
 
         marginal_costs = []
-        days_until_replenishment = self.expected_stock_level_at_end_of_rpm_cyle(node.node_type)
+        days_until_replenishment = self.remaining_days_until_replenishment(node.node_type)
 
         for line in order.lines:
             line:Order.Line
@@ -268,7 +271,7 @@ class Dynamic_1(Rule):
             marginal_costs.append(node.stock_holding_rate * cdf - order.supply_rate(node) * (1 - cdf))
         
         # return operator of marginal costs (min, modus, max)
-        return operator(marginal_costs)
+        return ALLOC_OPERATOR(marginal_costs)
 
     def main(self, order:Order, operator) -> array:
 
@@ -290,4 +293,6 @@ class Dynamic_1(Rule):
 
 
 
-
+    # expected stock level at the end of period 
+    # (self.current_level[article_id, node_id] - self.reserved[article_id, node_id] - self.expected()) \
+    # 

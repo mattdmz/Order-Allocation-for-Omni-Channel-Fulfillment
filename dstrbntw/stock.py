@@ -6,8 +6,8 @@
 ###############################################################################################
 
 from datetime import datetime
-from math import ceil, sqrt
-from numpy import array, copy, empty, sum, where, zeros_like
+from math import ceil, floor, sqrt
+from numpy import array, copy, empty, floor, sum, where, zeros_like
 from numpy.random import randint
 from scipy.stats import norm
 
@@ -34,6 +34,7 @@ class Stock():
         self.target_level = copy(empty_arr)
         self.reserved = copy(empty_arr)
         self.current_level = None
+        self.is_listed = None
         
         self.holding_rates = array(holding_rates)
 
@@ -55,7 +56,7 @@ class Stock():
         '''Returns the max. stock quantity an article at a node should have after replenishment.'''
         
         duration = RPL_CYCLE_DURATION + PLANED_STOCK_DURATION[abc_category]
-        return int(ceil(duration * avg_daily_demand + ppf * sqrt((duration) * variance_demand)))
+        return int(floor(duration * avg_daily_demand + ppf * sqrt((duration) * variance_demand)))
 
     def set_fix_stock_level(self) -> array:
 
@@ -78,7 +79,7 @@ class Stock():
             return copy(self.target_level)
 
         elif STOCK_SEED == PREDEFINED_LEVEL: # set between 70% and 100% of the target level for each element
-            return self.target_level * (array(node_start_stock_rates) + array(article_start_stock_rates))
+            return floor(self.target_level * (array(node_start_stock_rates) + array(article_start_stock_rates)))
 
         else: # FIX_LEVEL
             return self.set_fix_stock_level()

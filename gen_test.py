@@ -1,39 +1,25 @@
 
 
-# from numpy import array
+from numpy import array, sum, round
 
 
-# x = array([[10, 10, 10],
-#         [10, 10, 10],
-#         [10, 10, 10]])
+x = array([[10.4512, 0, 0],
+        [10, 3.1245, 10.1254],
+        [0, 3.1245, 0]])
 
-# y = array([1, 2, 3])
+y = array([[False, True, True],
+        [True, True, True],
+        [False, True, False]])
 
-# z = array([[0], [1], [2]])
+z = array([[0., 0., 0.],
+        [0., 3., 0.],
+        [0., 3., 0.]])
 
-# print(x * (y-z))
+a = sum((z == 0) * y)
 
-routes = [2, 4, 3, 1, 5]
-orders_to_deliver = [1, 2, 3, 4, 5]
-order_to_remove = 1
+print(a)
 
 
-for index, order in enumerate(orders_to_deliver):
-    if index > order_to_remove:
-        break
-
-for i in range(index, len(orders_to_deliver)):
-    orders_to_deliver[i] -= 1
-        
-for i, stop in enumerate(routes):
-    if i == order:
-        break
-
-for i in range(index, len(routes)):
-    routes[i] -= 1
-
-print(orders_to_deliver)
-print(routes)
 
 
 

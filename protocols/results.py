@@ -62,7 +62,7 @@ def init_order_evaluation(value_to_set) -> dict:
                 SAMEDAY_DELIVERY: value_to_set,
                 RETRY: value_to_set,
                 DELIVERY_DURATION: value_to_set,  
-                DISTANCE: value_to_set
+                DISTANCE: value_to_set,
     }
 
 def init_sales_evaluation(value_to_set) -> dict:
@@ -110,6 +110,7 @@ def init_results_evaluation(value_to_set) -> dict:
                 AVG_DELIVERY_DURATION: value_to_set,
                 DISTANCE: value_to_set,
                 AVG_DISTANCE: value_to_set,
+                OUT_OF_STOCK: value_to_set,
                 REPLENISHMENTS:value_to_set
     }
 
@@ -136,7 +137,7 @@ def increment_results(current_results:dict, new_results:Union[dict, DataFrame], 
         else:
             current_results[key] += new_results[key].sum()
 
-def evaluate_results(results:dict) -> dict:
+def evaluate_results(results:dict, daily:bool) -> dict:
 
     '''Calculates average SAMEDAY_DELIVERY and distance and returns dict.'''
 
@@ -145,9 +146,13 @@ def evaluate_results(results:dict) -> dict:
     results[REL_ONLINE_REVENUE] = results[ONLINE_REVENUE] / results[POTENTIAL_ONLINE_REVENUE] if not results[POTENTIAL_ONLINE_REVENUE] == 0 else 0
     results[PROFIT] =    results[OFFLINE_REVENUE] + results[ONLINE_REVENUE] + results[DIMINUISHED_STOCK_VALUE] \
                         -  results[SUPPLY_COSTS] - results[ORDER_PROCESSING_COSTS] - results[DELIVERY_COSTS]
-    results[SAMEDAY_DELIVERY_RATE] = results[SAMEDAY_DELIVERY] / results[NUMBER_OF_ORDERS] if not results[NUMBER_OF_ORDERS] == 0 else 0
     results[AVG_DELIVERY_DURATION] = results[DELIVERY_DURATION] / results[DELIVERED_ORDERS] if not results[DELIVERED_ORDERS] == 0 else 0
     results[AVG_DISTANCE] = results[DISTANCE] / results[DELIVERED_ORDERS] if not results[DELIVERED_ORDERS] == 0 else 0
+
+    if daily:
+        results[SAMEDAY_DELIVERY_RATE] = results[SAMEDAY_DELIVERY] / results[DELIVERED_ORDERS] if not results[DELIVERED_ORDERS] == 0 else 0
+    else: # False -> overall
+        results[SAMEDAY_DELIVERY_RATE] = results[SAMEDAY_DELIVERY] / results[NUMBER_OF_ORDERS] if not results[NUMBER_OF_ORDERS] == 0 else 0
 
     return results
 
@@ -209,6 +214,12 @@ class Result_Protocols:
 
         self.daily_results[region_id][SAMEDAY_DELIVERY] += sameday_deliveries
 
+    def store_out_of_stock_situations(self, out_of_stocks:int, region_id:int) -> None:
+
+        ''' Stores stock holding costs in the daily results.'''
+        
+        self.daily_results[region_id][OUT_OF_STOCK] += out_of_stocks
+
     def store_stock_holding_costs(self, stock_holding_costs:float, region_id:int) -> None:
 
         ''' Stores stock holding costs in the daily results.'''
@@ -229,8 +240,8 @@ class Result_Protocols:
         self.overall_results[region_id][REGION_ID] = region_id
 
         keys = [NUMBER_OF_LINES, LINES_CLOSED, POTENTIAL_OFFLINE_REVENUE, OFFLINE_REVENUE,
-                NUMBER_OF_ORDERS, POTENTIAL_ONLINE_REVENUE, ONLINE_REVENUE, 
-                DIMINUISHED_STOCK_VALUE, SUPPLY_COSTS, REPLENISHMENTS, ORDER_PROCESSING_COSTS, DELIVERY_COSTS, 
+                DELIVERED_ORDERS, NUMBER_OF_ORDERS, POTENTIAL_ONLINE_REVENUE, ONLINE_REVENUE, 
+                DIMINUISHED_STOCK_VALUE, SUPPLY_COSTS, REPLENISHMENTS, OUT_OF_STOCK, ORDER_PROCESSING_COSTS, DELIVERY_COSTS, 
                 STOCK_HOLDING_COSTS, RETRY, SAMEDAY_DELIVERY, DELIVERY_DURATION, DISTANCE]
                
         increment_results(self.overall_results[region_id], self.daily_results[region_id], keys)
@@ -261,7 +272,7 @@ class Result_Protocols:
         ''' Exports daily results of region to created file.
             Resets counter.'''
 
-        write_df(DataFrame.from_dict([evaluate_results(self.daily_results[region_id])]), \
+        write_df(DataFrame.from_dict([evaluate_results(self.daily_results[region_id], True)]), \
                                         self.run_id + DAILY_RESULTS_FILE_NAME, dir_path=self.output_dir_path, mode="a")
 
     def export_overall_results(self) -> None:
@@ -272,7 +283,7 @@ class Result_Protocols:
         for region_id in self.overall_results.keys():
             region_id:int
         
-            write_df(DataFrame.from_dict([evaluate_results(self.overall_results[region_id])]), \
+            write_df(DataFrame.from_dict([evaluate_results(self.overall_results[region_id], False)]), \
                                             self.run_id + OVERALL_RESULTS_FILE_NAME, dir_path=self.output_dir_path, mode="a")
 
     def export_parameters_used(self) -> None:

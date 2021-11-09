@@ -82,7 +82,7 @@ class Simulation:
         self.results.store_imported_trsct_eval(imported_trsct_eval, region.id)
 
         # allocate orders and check processability of sales
-        allocation = region.start_allocation(self.experiment.allocation_method, current_time, self.experiment.allocation_operator)
+        allocation = region.start_allocation(self.experiment.allocation_method, current_time)
 
         # export allocation 
         self.results.export_allocation(region.transform_allocation_array(allocation))
@@ -132,9 +132,10 @@ class Simulation:
             region.reschedule_allocation_of_unallocated_orders()
 
         # protocol results
-        self.results.store_sameday_delivery_for_orders_after_cot(region.determine_sameday_delivery_for_orders_after_cot(current_time), region.id)
+        #self.results.store_sameday_delivery_for_orders_after_cot(region.determine_sameday_delivery_for_orders_after_cot(current_time), region.id)
+        self.results.store_out_of_stock_situations(region.determine_out_of_stock_situations(), region.id)
         self.results.store_stock_holding_costs(region.calc_stock_holding_costs(), region.id)
-        self.results.store_number_of_replenishments(region.check_for_replenishments(), region.id)
+        self.results.store_number_of_replenishments(region.check_for_replenishments(current_time), region.id)
         self.results.export_daily_results(region.id)
         self.results.transfer_daily_results_to_overall_results(region.id)
 
