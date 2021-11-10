@@ -4,27 +4,25 @@ import time
 import fnmatch
 import pandas as pd
 
-
+#create subdirs for each day
 def createdirs(rootdir, concatenateddir):
     
     for file in os.listdir(rootdir):
         d = os.path.join(rootdir, file)
         if os.path.isdir(d):
-            print(d)
             #get last 9 characters, of the folder name (time of the test)
             file_time = d[len(d) - 9 :]
             #check if a directory for this time has been already created
             path_already_created = os.path.exists(os.path.join(concatenateddir, file_time))
-            print("Path already created? " '% s' %path_already_created)
             if(path_already_created):
                      continue
             else:
             # Path
                 path = os.path.join(concatenateddir, file_time)
                 os.mkdir(path)
-                print("Directory '% s' created" % file_time)
+                #print("Directory '% s' created" % file_time)
     	
- 
+#copy the day results to each day dir
 def copyFromTo(fromdir,todir, basedir):
     for file in os.listdir(fromdir):
         d = os.path.join(fromdir, file)
@@ -39,20 +37,23 @@ def copyFromTo(fromdir,todir, basedir):
                         old_name = os.path.join(d,file2)
                         if not os.path.exists(new_name):
                             shutil.copy(old_name, new_name)
-                            print( "Copied", file, "as", new_name)
+                            #print( "Copied", file, "as", new_name)
             else:
                 continue
 
+
+#Define the directory where the files are and where they have to be concatenate
 rootdir = 'I:\\austausch\\demetz\\Test_Experiments'
 concatenateddir = 'I:\\austausch\\demetz\\concatenated_results'
 
-#First delete all file in concatenated_results
+#First delete all file in concatenated_results to avoid old data
 shutil.rmtree(concatenateddir,ignore_errors=True)
 time.sleep(1)
 #create the concatenate dir
 os.mkdir(concatenateddir)
 #create subdirs for each day
 createdirs(rootdir,concatenateddir)
+
 #copy the day results to each day dir
 for file in os.listdir(concatenateddir):
     d = os.path.join(concatenateddir, file)
@@ -63,7 +64,21 @@ for file in os.listdir(concatenateddir):
 for file in os.listdir(concatenateddir):
     d = os.path.join(concatenateddir, file)
     if os.path.isdir(d):
-        all_files = glob.glob(os.path.join(d, "*.csv"))
-        df_from_each_file = (pd.read_csv(f, sep=',') for f in all_files)
-        df_merged   = pd.concat(df_from_each_file, ignore_index=True)
-        df_merged.to_csv( "merged.csv")
+        #add a column with the algorithm name to the file
+        os.chdir(d)
+        for csvfile in os.listdir(d):
+            df = pd.read_csv(csvfile,delimiter=';')
+            df.insert(0,"algorithm_used",csvfile[1:len(csvfile)-14])
+            df.to_csv(csvfile,  index=False, sep=';', encoding='utf-8-sig')
+        
+        
+        #combine all files in the list
+        extension = 'csv'
+        all_filenames = [i for i in glob.glob('*.{}'.format(extension))]
+        combined_csv = pd.concat([pd.read_csv(f, delimiter=';') for f in all_filenames ])
+
+        #export to csv
+        combined_csv.to_csv( d + "combined_results.csv", index=False, sep=';', encoding='utf-8-sig')
+        print("Concatenated results file created ",  d + "\\" +  "combined_results.csv")
+        os.chdir(concatenateddir)
+
