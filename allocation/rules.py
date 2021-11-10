@@ -6,13 +6,15 @@
 ###############################################################################################
 
 
+from copy import deepcopy
 from datetime import datetime
-from math import  sqrt
+from math import  floor, sqrt
 from numpy import array, concatenate, float64, zeros 
 from scipy.stats import norm
 
 from allocation.ruler import Rule
 from allocation.constants import RULE_BASED
+from dstrbntw.delivery import Delivery
 from dstrbntw.location import distance
 from dstrbntw.nodes import Node
 from dstrbntw.region import Region
@@ -229,51 +231,63 @@ class Dynamic_1(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def remaining_days_until_replenishment(self, node_type:int) -> float:
+    def days_since_last_replenishment(self, node_type:int) -> float:
         
         ''' Support method for Dynamic1.
             Returns the remaining number in days until the next replenishment as floating point value.'''
         
         shops_open = datetime.combine(self.current_time.date(), ALLOC_START_TIME)
-        full_days_to_next_replenishment =  (RPL_CYCLE_DURATION - ((self.current_time.date() - ORDER_PROCESSING_START).days % RPL_CYCLE_DURATION) - 1)
-        opening_minutes = time_diff(shops_open, OP_END_TIME[node_type])
-        remaining_time_current_day = time_diff(shops_open, self.current_time)
+        full_days_since_replenishment = self.current_time.date().isoweekday() % RPL_CYCLE_DURATION
+        open_minutes_current_day = time_diff(shops_open, self.current_time) 
+        shops_close = datetime.combine(self.current_time.date(), OP_END_TIME[node_type])
 
-        return (full_days_to_next_replenishment * opening_minutes + remaining_time_current_day) / opening_minutes
+        return full_days_since_replenishment + (open_minutes_current_day / time_diff(shops_open, shops_close))
 
-    def expected_stock_level_at_end_of_rpm_cyle(self, article_index:int, node_index:int, node_type:int) -> int:
+    def expected_stock_level_at_end_of_rpm_cyle(self, article_index:int, node_index:int, days_since_rplm:float) -> int:
 
         ''' Support method for Dynamic1.
             Returns the expected stock level for a certain article at the end 
             of the replenishment cycle == before replenishment.'''
-        
-        return     self.stock.current_level[article_index, node_index] \
-                -  self.stock.reserved[article_index, node_index] \
-                - (self.demand.expected(article_index, node_index, self.current_time, datetime.combine(self.current_time.date(), OP_END_TIME[node_type]) \
-                / (sqrt(self.demand.__get__("var", article_index, node_index)) * sqrt(self.current_time.date().isoweekday() % RPL_CYCLE_DURATION))))
 
-    def marg_holding_backorder_cost(self, order:Order, node:Node):
+        return     (self.stock.current_level[article_index, node_index] \
+                -  self.stock.reserved[article_index, node_index]) \
+                -  RPL_CYCLE_DURATION * self.demand.__getattr__("avg", article_index, node_index) * (floor(days_since_rplm) - days_since_rplm + 1) \
+                / sqrt(self.demand.__getattr__("var", article_index, node_index) * (floor(days_since_rplm) - days_since_rplm + 1))  
+
+    def marginal_op_and_delivery_costs(self, order:Order, node:Node) -> float:
+
+        '''Returns the delivery costs if the order is allocated at the examined node.'''
+
+        prototype_delivery = deepcopy(node.delivery) #type:Delivery
+        prototype_delivery.add_order(order)
+        prototype_delivery.build_routes()
+        delivery_costs =   (prototype_delivery.tot_duration * node.route_rate) \
+                         - (node.delivery.tot_duration * node.route_rate) \
+                         + (node.tour_rate if len(node.delivery.batches) == 0 else 0)
+
+        return order.number_of_lines * node.order_processing_rate + delivery_costs
+
+    def marginal_costs(self, order:Order, node:Node):
         
         ''' Support method for Dynamic1.
             Returns marginal holding and backorder costs of maintaining 
             one additional unit of article article_index at node node_index.'''
 
-        marginal_costs = []
-        days_until_replenishment = self.remaining_days_until_replenishment(node.node_type)
+        marg_holding_and_backorder_costs = []
+        days_since_rplm = self.days_since_last_replenishment(node.node_type)
 
         for line in order.lines:
             line:Order.Line
 
             # calculate cumulative distribution function for the expected stock at the end of the replenishment cycle
-            cdf = norm.cdf(self.expected_stock_level_at_end_of_rpm_cyle(line.article.index, node.index, days_until_replenishment))
+            cdf = norm.cdf(self.expected_stock_level_at_end_of_rpm_cyle(line.article.index, node.index, days_since_rplm))
 
             # calculate and append marginal costs
-            marginal_costs.append(node.stock_holding_rate * cdf - order.supply_rate(node) * (1 - cdf))
-        
-        # return operator of marginal costs (min, modus, max)
-        return ALLOC_OPERATOR(marginal_costs)
+            marg_holding_and_backorder_costs.append(node.stock_holding_rate * cdf - node.supply_rate * (1 - cdf))
 
-    def main(self, order:Order, operator) -> array:
+        return ALLOC_OPERATOR(marg_holding_and_backorder_costs) + self.marginal_op_and_delivery_costs(order, node)
+
+    def main(self, order:Order) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on marginal holding and backorder costs of allocating 
@@ -287,12 +301,6 @@ class Dynamic_1(Rule):
             node:Node
             
             indexes[i] = node.index
-            marginal_costs[i] = self.marg_holding_backorder_cost(order, node, operator)
+            marginal_costs[i] = self.marginal_costs(order, node)
         
         return indexes[marginal_costs.argsort()]
-
-
-
-    # expected stock level at the end of period 
-    # (self.current_level[article_id, node_id] - self.reserved[article_id, node_id] - self.expected()) \
-    # 

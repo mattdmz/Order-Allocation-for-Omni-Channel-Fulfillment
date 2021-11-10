@@ -13,9 +13,9 @@ from util import sol2routes
 from dstrbntw.location import Location, distance
 from dstrbntw.customers import Customer
 from parameters import *
-from utilities.constants import ADD, SUBTRACT
-from utilities.datetime import calc_time
 from transactions.orders import Order
+from utilities.constants import SUBTRACT
+from utilities.datetime import calc_time
 from vrp.paersenssavings import paessens_savings_init
 
 class Vehicle:
@@ -142,7 +142,7 @@ class Delivery(Vehicle):
             index:int
             stop:int
 
-            if stop == order.delivery_index:
+            if stop == order.delivery_index + 1: # + 1 because route stops are retrieved from volumes having depot at index position 0
                 break
 
         for i in range(index, len(self.routes)):
@@ -201,7 +201,7 @@ class Delivery(Vehicle):
 
         return best_position
 
-    def build_routes(self, time_capacity_per_tour:int=MAX_WORKING_TIME[0], node_type:int=0, max_iterations_ls:int=PS_88_MAX_ITER_LOC_SEARCH) -> None:
+    def build_routes(self, time_capacity_per_tour:int=MAX_WORKING_TIME[0], max_iterations_ls:int=PS_88_MAX_ITER_LOC_SEARCH) -> None:
 
         ''' Passes parameters to VRP Solver.
             Time_capacity_per_tour defines max time for every delivery delivery tour
@@ -241,22 +241,31 @@ class Delivery(Vehicle):
 
         return list(self.orders_to_deliver[index - 1] for index in route[1:-1])
 
-    def delivery_start(self, batch_index:int, batches:list, delivery_duration:int) -> time:
+    def delivery_end(self, batch_index:int, batches:list, current_time:datetime) -> time:
 
-        '''Retunrns the start time of the delivery tour.'''
+        '''Retunrns the end time of the delivery tour.'''
 
         if batch_index == 0:
             
-            # set delivery tour start to min(OP_END (=node closure), or END_OF_TOURS - delivery tour duration)
-            start_time = min(calc_time(OP_END_TIME[self.depot_type], delivery_duration, SUBTRACT), END_OF_TOURS)
+            # set delivery tour end to END_OF_TOURS
+           end_time = END_OF_TOURS
             
         else:
             # set delivery tour start to end of privous delivery tour + a small pause
-            start_time = calc_time(batches[batch_index - 1].delivery_end.time(), self.pause_btw_tours, ADD)
+            end_time = calc_time(batches[batch_index - 1].delivery_start.time(), self.pause_btw_tours, SUBTRACT)
             
-        return datetime.combine(self.day, start_time)   
+        return datetime.combine(current_time.date(), end_time) 
 
+    def approx_delivery_end(self, current_time:datetime, order_processing_capacity:float) -> datetime:
 
+        '''Retunrs the approximate end time of a delivery (all batches).'''
+
+        for route in sol2routes(self.routes):
+            orderlines_of_first_batch = sum(order.number_of_lines for order in self.get_orders_of_route(route))
+        
+        return  current_time + timedelta(minutes=int(round(orderlines_of_first_batch * order_processing_capacity, 0)) + self.tot_duration)
+    
+    
     class Batch:
 
         ''' A batch of orders resulting from a delivery tour that is processed togheter at a node before delivery.
@@ -312,17 +321,17 @@ class Delivery(Vehicle):
 
             return int(round(sum(order.number_of_lines for order in self.orders) * self.order_processing_capacity, 0))
 
-        def schedule(self, delivery_start:datetime) -> None:
+        def schedule(self, delivery_end:datetime, pause_btw_tours:int) -> None:
 
             ''' Carries out backward scheduling for order processing start and forward scheduling for delivery end
                 based on delivery start of a batch.'''
 
-            self.delivery_start = delivery_start
-            self.delivery_end = self.delivery_start + timedelta(minutes=self.delivery_duration)
+            self.delivery_end = delivery_end
+            self.delivery_start = self.delivery_end - timedelta(minutes=self.delivery_duration + pause_btw_tours)
             self.processing_start =  self.delivery_start - timedelta(minutes=self.processing_duration)
   
             
-    def create_batches(self) -> None:
+    def create_batches(self, current_time:datetime) -> None:
 
         ''' Separetes single tours and creates batches.
             Schedules operations for batch
@@ -332,6 +341,7 @@ class Delivery(Vehicle):
 
         # split allroutes and store them as single routes with their duration
         for route in sol2routes(self.routes):
+            route:list
             
             #calcualte duration of route. Use route duration calculated when creating tour if there is only 1 route in sol2routes
             delivery_duration = self.tot_duration if route == self.routes else self.route_duration(route)
@@ -345,18 +355,23 @@ class Delivery(Vehicle):
             
             else:
                 # sort batches in descending order based on their route duration
-                for index, batch in enumerate(batches):
+                for index in range(len(batches) + 1):
                     index:int
-                    batch:Delivery.Batch
 
-                    if new_batch.delivery_duration > batch.delivery_duration:
-                        batches.insert(index, new_batch)
+                    try:
+                        if new_batch.delivery_duration < batches[index].delivery_duration:
+                            batches.insert(index, new_batch)
+                            break
+                    except:
+                        batches.append(new_batch)
                         break
         
         # schedule operations for batches
         for index, batch in enumerate(batches):
-            delivery_start = self.delivery_start(index, batches, batch.delivery_duration)
-            batch.schedule(delivery_start)
+            index:int
+            batch:Delivery.Batch
+            
+            batch.schedule(self.delivery_end(index, batches, current_time), self.pause_btw_tours)
         
         # sort routs in descending order based on their duration
         self.batches = batches
@@ -376,7 +391,7 @@ class Delivery(Vehicle):
         '''Returns the start time of the order processing and delivery the tour.'''
 
         try:
-            return self.batches[0].processing_start
+            return self.batches[len(self.batches) - 1].processing_start
         
         except IndexError:
             # no batches added yet
@@ -387,10 +402,10 @@ class Delivery(Vehicle):
         ''' Returns batch of orders that needs to be processed from batchces (if there is any)
             Deletes batch from list and removes the orders from the delivery.'''
 
-        batch = self.batches[0] if len(self.batches[0].orders) > 0 else None
-        if batch is not None:
-            del self.batches[0]
-        return batch
+        try:
+            return self.batches.pop()
+        except IndexError:
+            return None
 
     def on_time(self, current_time:datetime) -> bool:
 

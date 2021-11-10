@@ -323,7 +323,7 @@ class Region:
 
         return nodes_with_batches_to_process if nodes_with_batches_to_process != [] else None
 
-    def check_processability(self, nodes_with_batches_to_process:list) -> None:
+    def check_processability(self, nodes_with_batches_to_process:list, current_time:datetime) -> None:
 
         ''' Stores True or False as order attribute if order is processable or not. 
             Removes order form delivery tour if not processable and reschedule tour
@@ -334,7 +334,7 @@ class Region:
         for node in nodes_with_batches_to_process:
             node:Node
             
-            batch_to_process = node.delivery.batches[0]
+            batch_to_process = node.delivery.batches[len(node.delivery.batches) -1]
 
             for order in batch_to_process.orders:
                 order:Order
@@ -364,10 +364,10 @@ class Region:
             if len(order.allocated_node.delivery.orders_to_deliver) > 1:
                 
                 # rebuild the routes
-                order.allocated_node.delivery.build_routes(node_type=order.allocated_node.node_type)
+                order.allocated_node.delivery.build_routes()
 
                 # reschedule delivery to get the correct delivery times of the new route without the order that could not be processed
-                order.allocated_node.delivery.create_batches()
+                order.allocated_node.delivery.create_batches(current_time)
 
             # reset allocation
             order.allocated_node = None
@@ -425,7 +425,7 @@ class Region:
         if nodes_with_batches_to_process is not None:
             
             # check if stock reserved is still available
-            self.check_processability(nodes_with_batches_to_process)
+            self.check_processability(nodes_with_batches_to_process, current_time)
 
             # calculate revenue generated from orders and subtract order processing costs
             return self.process_orders(nodes_with_batches_to_process, current_time)
@@ -469,26 +469,6 @@ class Region:
             node:Node
             
             node.set_order_acceptance_status(status)
-
-    def determine_sameday_delivery_for_orders_after_cot(self,  current_time:datetime) -> int:
-
-        ''' Returns the number of same day deliveries (deliverd on current_time + 1 day) 
-            for orders which came in after cut off time.'''
-
-        sameday_deliveries = 0
-
-        for node in self.nodes.dict.values():
-            node:Node
-
-            for batch in node.delivery.batches:
-
-                for order in batch.orders:
-                    order:Order
-
-                    if order.delivered_sameday(current_time):
-                        sameday_deliveries +=1
-
-        return sameday_deliveries
 
     def determine_out_of_stock_situations(self) -> int:
 

@@ -132,7 +132,6 @@ class Simulation:
             region.reschedule_allocation_of_unallocated_orders()
 
         # protocol results
-        #self.results.store_sameday_delivery_for_orders_after_cot(region.determine_sameday_delivery_for_orders_after_cot(current_time), region.id)
         self.results.store_out_of_stock_situations(region.determine_out_of_stock_situations(), region.id)
         self.results.store_stock_holding_costs(region.calc_stock_holding_costs(), region.id)
         self.results.store_number_of_replenishments(region.check_for_replenishments(current_time), region.id)

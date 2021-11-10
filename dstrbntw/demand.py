@@ -38,8 +38,9 @@ class Demand():
             if SUBTRACT_EXPECTED_STOCK_DEMAND == True else returns 0.'''
 
         avg_demand = self.__getattr__("avg", article_index, node_index)
+        td = time_diff(op_end_time, current_time)
 
-        return int(ceil( avg_demand / (720 * time_diff(op_end_time, current_time))) + avg_demand if current_time.date().isoweekday() % RPL_CYCLE_DURATION != 0 else 0)
+        return int(ceil((avg_demand / 720 * td) if td > 0 else 0 + avg_demand if current_time.date().isoweekday() % RPL_CYCLE_DURATION != 0 else 0))
 
 
 

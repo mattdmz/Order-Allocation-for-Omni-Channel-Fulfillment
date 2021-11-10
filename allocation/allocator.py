@@ -19,7 +19,7 @@ from dstrbntw.delivery import Delivery
 from protocols.constants import ALLOC_ARR, ALLOCATION_DATETIME, BEST_OBJ_VALUE, ITER, NUMBER_OF_ORDERS, REGION_ID, RETRY, SAMEDAY_DELIVERY
 from transactions.orders import Order
 from transactions.sales import Sale
-from parameters import OP_END_TIME
+from parameters import END_OF_TOURS, OP_CAPACITY, OP_END_TIME
 
 class Allocator:
 
@@ -124,15 +124,17 @@ class Allocator:
         # check availablity of delivery capacities. Copy current tour and prototype routes after having added the new order.
         delivery = self.nodes.__getattr__(DELIVERY, index=node_index) #type: Delivery
         prototype_delivery = deepcopy(delivery)
-        prototype_delivery.approximate_routes(prototype_delivery.add_order(order))
+        prototype_delivery.add_order(order)
+        prototype_delivery.build_routes()
 
-        # schedule tour and its order processing
-        prototype_delivery.create_batches()
-
-        # check if tour start after current_time to assure allocatability
-        order_deliverable = prototype_delivery.on_time(self.current_time)
-
-        return prototype_delivery if order_deliverable else None
+        # check if prototype tour end before end of tours
+        if  prototype_delivery.approx_delivery_end(self.current_time, OP_CAPACITY[self.nodes.__getattr__(NODE_TYPE, index=node_index)]) \
+            <=  datetime.combine(self.current_time.date(), END_OF_TOURS):
+            
+            return prototype_delivery 
+        
+        else:
+            return None
 
     def allocatable(self, order:Order, node_index:int) -> int:
             
@@ -181,14 +183,11 @@ class Allocator:
         # reduce available delivery tour capacity and reschedule delivery batches
         delivery = self.nodes.__getattr__(DELIVERY, index=node_index) #type: Delivery
         
-        # builde routes if there is more than 1 order to deliver
-        if len(delivery.orders_to_deliver) > 1:
-            
-            # build routes
-            delivery.build_routes(node_type=order.allocated_node.node_type)
+        # creae batches if there is more than 1 order to deliver
+        if len(delivery.orders_to_deliver) >= 1:
         
             # schedule tour and its order processing
-            delivery.create_batches()
+            delivery.create_batches(self.current_time)
 
     def prepare_evaluation(self) -> None:
 

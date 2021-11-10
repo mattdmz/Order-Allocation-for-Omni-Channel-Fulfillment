@@ -42,7 +42,7 @@ def time_diff(t1:datetime, t2:datetime) -> int:
 
     '''Returns the difference in minutes between two timestamps.'''
 
-    return int(abs(t1 - t2).total_seconds() / 60)
+    return 0 if t1 == t2 else int(abs(t1 - t2).total_seconds() / 60)
 
 def cut_off_time(current_day:date) -> datetime:
 

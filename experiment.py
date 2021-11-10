@@ -21,7 +21,7 @@ def main() -> None:
     allocation_period = timedelta(hours=3, minutes=0, seconds=0)
  
     # [LIST] of regions to allocated orders in, e.g. [1005]. All all regions should be considered tpye "all"                         
-    allocation_regions = [1005]
+    allocation_regions = [1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008]
 
     # choose from allocator.constants, relevant for Longest_Stock_Duration
     
@@ -29,10 +29,10 @@ def main() -> None:
 
     # define number of days to test and number of times (periods) to run the test on consecutive days
     test_days = 2
-    test_periods = 1
+    test_periods = 10
 
     # set allocation methods to run program with (choices from allocation.rules)
-    allocation_methods = [Chepest_Direct_Delivery]
+    allocation_methods = [Allocation_Of_Nearest_Order, Chepest_Direct_Delivery, Dynamic_1, Longest_Stock_Duration, Nearest_Already_Allocated_Nodes, Nearest_Nodes]
 
     # run experiment with defined parameters
     exp_runner = Experiment_Runner(test_days, test_periods, allocation_methods)

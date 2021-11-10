@@ -207,13 +207,6 @@ class Result_Protocols:
             keys = [LINES_CLOSED, OFFLINE_REVENUE, DIMINUISHED_STOCK_VALUE]
             increment_results(self.daily_results[region_id], sales_evaluation, keys)
 
-    def store_sameday_delivery_for_orders_after_cot(self, sameday_deliveries:int, region_id:int) -> None:
-
-        '''Stores the number of same day deliveries (deliverd on current_time + 1 day) 
-            for orders which came in after cut off time.'''
-
-        self.daily_results[region_id][SAMEDAY_DELIVERY] += sameday_deliveries
-
     def store_out_of_stock_situations(self, out_of_stocks:int, region_id:int) -> None:
 
         ''' Stores stock holding costs in the daily results.'''
