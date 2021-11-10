@@ -32,7 +32,7 @@ def copyFromTo(fromdir,todir, basedir, typeOfResult):
             file_time_to = todir[len(todir) - 9 :]
             if (file_time_from == file_time_to):
                 for file2 in os.listdir(d):
-                    if fnmatch.fnmatch(file2, '*_overall_results.csv'):
+                    if fnmatch.fnmatch(file2, typeOfResult):
                         new_name = os.path.join(basedir,todir,file[16:len(file)] + '.csv')
                         old_name = os.path.join(d,file2)
                         if not os.path.exists(new_name):
