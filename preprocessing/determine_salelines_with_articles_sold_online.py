@@ -1,7 +1,7 @@
 
 ###############################################################################################
 
-'''This script returns a files (based on a date-range) 
+''' This script returns a files (based on a date-range) 
     with saleslines containing articles solf online.'''
 
 ###############################################################################################
@@ -46,8 +46,9 @@ def check_for_transctions_with_articles_sold_online(articles, input_path, output
 
                     output_file.write(row)
 
+def main():
 
-if __name__ == "__main__":
+    '''Check for transactions with articles sold online.'''
 
     directory = "C:/Users/demetz/Documents/Masterarbeit/MA_Daten/MA_Daten_Verarbeitet/"
     articles_file_name = "Articles.csv"
@@ -63,3 +64,9 @@ if __name__ == "__main__":
     for file_date in file_dates:
 
         check_for_transctions_with_articles_sold_online(articles, directory + input_file_name + file_dates + file_type, directory + output_file)
+
+
+if __name__ == "__main__":
+
+    main()
+

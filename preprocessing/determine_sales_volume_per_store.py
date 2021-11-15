@@ -1,7 +1,7 @@
 
 ###############################################################################################
 
-'''This script creates a file with a columns store id 
+''' This script creates a file with a columns store id 
     and a column avg. monthly sales volume in m3 based on input data from saleline files.'''
 
 ###############################################################################################
@@ -82,8 +82,9 @@ def write_sales_volume_per_store(output_path, stores_dict, months):
             #write average
             output_file.write(store_id + ";" + str(sales_volume/1000000/4) + "\n")
 
+def main():
 
-if __name__ == "__main__":
+    '''Determine sales volume per store'''
 
     directory = "C:/Users/demetz/Documents/Masterarbeit/MA_Daten/MA_Daten_Verarbeitet/"
     articles_file_name = "Articles_all"
@@ -108,3 +109,7 @@ if __name__ == "__main__":
 
     output_file = directory + output_file_name + file_type
     write_sales_volume_per_store(output_file, stores_dict, 3)
+
+if __name__ == "__main__":
+
+    main()

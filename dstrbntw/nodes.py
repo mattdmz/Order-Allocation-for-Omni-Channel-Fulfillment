@@ -169,6 +169,13 @@ class Nodes:
 
         return list(node for node in self.dict.values() if node.accepting_orders)
 
+    @property
+    def indexes_of_accepting_orders(self) -> list:
+
+        '''Returns a list of indexes of currently available nodes based on the accepting_orders status of each node.'''
+
+        return list(node.index for node in self.dict.values() if node.accepting_orders)
+
     def imp(self, db:Database, node_type:int=None, region_column:str=None, region_id:int=None) -> None:
 
         ''' Fetches data from db about nodes and stores them as node object in a dict 

@@ -17,7 +17,6 @@ from dstrbntw.constants import A, B, C, FULFILLMENT_CENTER, PREDEFINED_LEVEL, RN
 
 # Allocation
 
-ALREADY_ALLOCATED_THRESHOLD = 0.15
 ALLOC_OPERATOR = median
 
 # Assortment and Stock
@@ -34,9 +33,9 @@ LISTING_LIMIT = {   SMALL_STORE: 0,         # {1 >= SMALL_STORE >= REGULAR_STORE
 
 # planned duration of stock calculated in addition to replenishment cycle duration (e.g. CYCLE_DURATION= 1 day + PLANED_STOCK_DURATION = 2 days  
 # --> pursued stock duration = 3 days)
-PLANED_STOCK_DURATION = {   A: 2,    #{int >= 1}
-                            B: 4,    #{int >= 1}
-                            C: 6      #{int >= 1}
+PLANED_STOCK_DURATION = {   A: 5,    #{int >= 1}
+                            B: 7,    #{int >= 1}
+                            C: 10      #{int >= 1}
 }
 
 # Determines the limit for a categorization between A and B / B and C level based on cumulated relative demand
@@ -44,15 +43,15 @@ STOCK_A_B_LIMIT = 0.3      # {STOCK_A_B_LIMIT < STOCK_B_C_LIMIT}
 STOCK_B_C_LIMIT = 0.65      # {STOCK_B_C_LIMIT < = 1}
 
 # service degree pursued for certain stock type
-STOCK_BETA_SERVICE_DEGREE = { A: 0.99,    #{0 - 1}
-                              B: 0.975,    #{0 - 1}
-                              C: 0.95      #{0 - 1}
+STOCK_BETA_SERVICE_DEGREE = { A: 0.995,    #{0 - 1}
+                              B: 0.995,    #{0 - 1}
+                              C: 0.995      #{0 - 1}
 }
 
 # €/unit of stock per day
-STOCK_HOLDING_RATE = {  SMALL_STORE: 0.03,
-                        REGULAR_STORE: 0.02,
-                        FULFILLMENT_CENTER: 0.01
+STOCK_HOLDING_RATE = {  SMALL_STORE: 0.05,
+                        REGULAR_STORE: 0.025,
+                        FULFILLMENT_CENTER: 0.005
 }
 
 # Determines the start level of the stock
@@ -68,9 +67,9 @@ STOCK_SEED = PREDEFINED_LEVEL      # options: FIX_LEVEL, RNDM_BTWN_REORDER_AND_T
 # source Delivery Van --> FULFILLMENT CENTER: https://www.iveco.com/germany/neufahrzeuge/pages/iveco_daily_7_tonner.aspx#overview --> 7,5t
 
 # km/min ( / 3.14 -> Annahme der Annähreung der echten Fahrzeit, da Entferung in Luftlinie gemessen wird)
-AVG_SPEED = {   SMALL_STORE: 0.1, # / 3.14,          # 6 km/h 
-                REGULAR_STORE: 0.5, # / 3.14,        # 30 km/h 
-                FULFILLMENT_CENTER: 0.83, # / 3.14   # 50 km/h 
+AVG_SPEED = {   SMALL_STORE: 0.25,           # 15 km/h 
+                REGULAR_STORE: 0.5,          # 30 km/h 
+                FULFILLMENT_CENTER: 0.83,    # 50 km/h 
 }
 
 END_OF_TOURS = time(21, 0, 0)
@@ -101,8 +100,8 @@ PAUSE_BTW_TOURS = { SMALL_STORE: 5,
 
 # €/min. 
 ROUTE_RATE = {  SMALL_STORE: 0.3,
-                REGULAR_STORE: 0.25,
-                FULFILLMENT_CENTER: 0.2
+                REGULAR_STORE: 0.35,
+                FULFILLMENT_CENTER: 0.4
 } 
 
 # min.
@@ -112,9 +111,9 @@ SERVICE_TIME_PER_ORDER = {  SMALL_STORE: 3.5,
 }
 
 # €/Tour
-TOUR_RATE = {   SMALL_STORE: 5,
-                REGULAR_STORE: 5,
-                FULFILLMENT_CENTER: 5
+TOUR_RATE = {   SMALL_STORE: 40,
+                REGULAR_STORE: 60,
+                FULFILLMENT_CENTER: 80
 }
 
 # _________________________________________________________________________________________________________________________________________________
@@ -124,9 +123,6 @@ TOUR_RATE = {   SMALL_STORE: 5,
 # period of time used to analyse demand
 DEMAND_ANALYSIS_START = date(2019, 3, 1)
 DEMAND_ANALYSIS_END = date(2019, 5, 31)
-
-
-REGIONAL_DEMAND_GRANULARITY = FC   # ZIP_REGION
 
 # SUBTRACTS EXPECTED DEMAND OF THE DAY FOR A CERTAIN ARTICLE IN A CERTAIN REGION WHEN CHECKING IF STOCK IS AVAILABLE
 SUBTRACT_EXPECTED_STOCK_DEMAND = True
@@ -145,9 +141,9 @@ CUT_OFF_TIME = time(17, 00, 0)
 NUMBER_OF_WORKDAYS = 6
 
 # order processing capacity in orderlines per minute
-OP_CAPACITY = { SMALL_STORE: 0.83,   #50 orderlines/hour
+OP_CAPACITY = { SMALL_STORE: 1,   #60 orderlines/hour
                 REGULAR_STORE: 1.5,    #100 orderlines/hour
-                FULFILLMENT_CENTER: 41  #2500 orderlines/hour
+                FULFILLMENT_CENTER: 40  #2500 orderlines/hour
 }
 
 # end time of order processing  = latest possible start of delivery tour
@@ -169,8 +165,8 @@ ORDER_PROCESSING_END = date(2019, 3, 2)
 
 # Replenishment / Supply
 
-# max volume of 1 pallet in cm3
-MAX_PAL_VOLUME = 1728000
+# max volume of 1 pallet in cm3 (120 * 60 * 180)
+MAX_PAL_VOLUME = 1728000 * 0.75
 
 # €/PAL/km
 PAL_RATE = 2

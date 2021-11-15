@@ -117,7 +117,8 @@ class Order():
                         SAMEDAY_DELIVERY: self.delivered_sameday(proc_time),
                         RETRY: self.allocation_retried,
                         DELIVERY_DURATION: delivery_duration,
-                        DISTANCE: distance(self.customer.location, self.allocated_node.location) if self.allocated_node is not None else 0
+                        DISTANCE: distance(self.customer.location, self.allocated_node.location) if self.allocated_node is not None else 0,
+                        NODE_TYPE: self.allocated_node.node_type if self.allocated_node is not None else self.failure
                     }
 
         class Line():

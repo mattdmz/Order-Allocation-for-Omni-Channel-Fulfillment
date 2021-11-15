@@ -6,11 +6,13 @@
 ###############################################################################################
 
 from copy import deepcopy
+from datetime import datetime
 from numpy import array
 from pandas import Series
 
 from allocation.constants import OPTIMIZER, TABU_ADD, TABU_DROP
 from allocation.optimizer import Optimizer
+from dstrbntw.region import Region
 from protocols.constants import ALLOC_ARR, BEST_OBJ_VALUE, ITER, OBJ_VALUE, STRATEGY
 
 
@@ -20,12 +22,12 @@ class Tabu_Search(Optimizer):
 
     __type__ = OPTIMIZER
 
-    def __init__(self) -> None:
+    def __init__(self, region:Region, current_time:datetime=None) -> None:
 
         ''' Inits parent class for optimizers and 
             sets parameters for Tabu Search algorithm.'''
         
-        super().__init__()
+        super().__init__(region, current_time, self.main)
 
         self.memory_list = []
         self.memory_length = 5

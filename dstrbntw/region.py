@@ -79,7 +79,7 @@ class Region:
                 article:Article
 
                 # move value to numpy array and index with arrays
-                arr[article.index, node.index] = df.loc[article.id, str(node.fc)]
+                arr[article.index, node.index] = df.loc[article.id, str(node.id)]
 
         return arr
 
@@ -248,12 +248,12 @@ class Region:
 
         return imported_trsct_eval
 
-    def start_allocation(self, allocator, current_time:datetime) -> dict:
+    def start_allocation(self, allocator, current_time:datetime) -> object:
 
         ''' Returns an allocation made with the allocator passed (rule-based allocator or an optimizer).'''
         
         # start allocation with the allocator passed (rule-based allocator or an optimizer)
-        return allocator(self, current_time).allocation
+        return allocator(self, current_time)
 
     def determine_not_allocated_orders(self, allocation:dict, current_time:datetime) -> DataFrame:
 
@@ -362,12 +362,13 @@ class Region:
 
             # rebuild delivery routes if there is orders remaining to deliver
             if len(order.allocated_node.delivery.orders_to_deliver) > 1:
-                
-                # rebuild the routes
-                order.allocated_node.delivery.build_routes()
 
                 # reschedule delivery to get the correct delivery times of the new route without the order that could not be processed
                 order.allocated_node.delivery.create_batches(current_time)
+
+            else:
+                #reset delivery
+                order.allocated_node.reset_delivery()
 
             # reset allocation
             order.allocated_node = None
@@ -393,8 +394,8 @@ class Region:
                     node.reset_delivery() 
             
                 # compute delivery costs of tour and divide by number of orders to deliver
-                delivery_costs = batch.delivery_costs / len(batch.orders)
-                delivery_duration = batch.delivery_duration / len(batch.orders) 
+                delivery_costs = batch.delivery_costs / len(batch.orders) if len(batch.orders) > 0 else 0
+                delivery_duration = batch.delivery_duration / len(batch.orders) if len(batch.orders) > 0 else 0
 
                 # process orders marked as processable
                 for order in batch.orders:

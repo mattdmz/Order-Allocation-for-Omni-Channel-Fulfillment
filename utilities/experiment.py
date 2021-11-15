@@ -44,7 +44,7 @@ class Experiment_Runner:
 
         '''Returns list of day tuples (start date, end date) to run the experiment with.'''
 
-        return [(date(2019, 3, day), date(2019, 3, day-1+ self.test_days)) for day in range(3, self.test_periods*2, self.test_days)]
+        return [(date(2019, 3, day), date(2019, 3, day-1+ self.test_days)) for day in range(1, self.test_periods*2, self.test_days)]
     
     def run(self, experiment:Experiment) -> None:
 

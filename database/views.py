@@ -305,6 +305,7 @@ class Quantity_Of_Articles_Sold_Offline():
         Drill downs:
         - specific article_id 
         - between start and/or ende_date
+        - in a specific node
         - in a specific zip_region
         - in a specific fc region.'''
 

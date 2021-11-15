@@ -7,6 +7,7 @@
 
 from datetime import date, datetime, timedelta, time
 
+from allocation.constants import OPTIMIZER
 from dstrbntw.dstrbntw import Distribution_Network
 from dstrbntw.region import Region
 from parameters import ALLOC_END_TIME, ALLOC_START_TIME, CUT_OFF_TIME, END_OF_TOURS, NUMBER_OF_WORKDAYS                   
@@ -85,14 +86,19 @@ class Simulation:
         allocation = region.start_allocation(self.experiment.allocation_method, current_time)
 
         # export allocation 
-        self.results.export_allocation(region.transform_allocation_array(allocation))
+        self.results.export_allocation(region.transform_allocation_array(allocation.allocation))
+
+        # export optimization report 
+        if self.experiment.allocation_method.__type__ == OPTIMIZER:
+            self.results.export_optimization_protocol(allocation.protocol, current_time)
 
         # evaluate orders that could not be allocated
-        evaluation_of_not_allocated_orders = region.determine_not_allocated_orders(allocation, current_time)
+        evaluation_of_not_allocated_orders = region.determine_not_allocated_orders(allocation.allocation, current_time)
 
         if evaluation_of_not_allocated_orders is not None:
                         
             # reschedule not allocated orders if they were not already reallocated and export not allocated orders
+            self.results.store_orders_evaluation(evaluation_of_not_allocated_orders, region.id)
             self.results.export_orders_evaluation(evaluation_of_not_allocated_orders)
 
         # evaluate set processability of sales
@@ -135,7 +141,11 @@ class Simulation:
         self.results.store_out_of_stock_situations(region.determine_out_of_stock_situations(), region.id)
         self.results.store_stock_holding_costs(region.calc_stock_holding_costs(), region.id)
         self.results.store_number_of_replenishments(region.check_for_replenishments(current_time), region.id)
-        self.results.export_daily_results(region.id)
+        
+        # export daily results
+        self.results.export_daily_results(region.id, current_time)
+
+        #add daily results to overall results
         self.results.transfer_daily_results_to_overall_results(region.id)
 
     def check_operations(self, current_time:datetime) -> None:
@@ -202,5 +212,5 @@ class Simulation:
         ''' Exports overall results form simualtion.
             Stores a copy of the parameters in the output dir.'''
 
-        self.results.export_overall_results()
+        self.results.export_overall_results(self.experiment.start, self.experiment.end)
         self.results.export_parameters_used()

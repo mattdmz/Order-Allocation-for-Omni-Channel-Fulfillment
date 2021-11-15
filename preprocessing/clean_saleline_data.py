@@ -9,8 +9,6 @@
 
 ###############################################################################################
 
-from datetime import datetime as dt
-
 def add_leading_zeros(date_string):
 
     date_with_leading_zeros = ""
@@ -22,9 +20,10 @@ def add_leading_zeros(date_string):
 
     return date_with_leading_zeros[:-1]
 
-
 def clean_and_sumamrize_sales_data(file_path, source_file_name, file_dates, source_file_type, target_file_name, target_file_type):
-        
+    
+    from datetime import datetime
+
     for file_date in file_dates:
 
         #create new target file
@@ -60,7 +59,7 @@ def clean_and_sumamrize_sales_data(file_path, source_file_name, file_dates, sour
                             date_ = add_leading_zeros(date_)
 
                         #format date
-                        formated_date = dt.strptime(date_, "%d.%m.%Y").strftime("%Y-%m-%d")
+                        formated_date = datetime.strptime(date_, "%d.%m.%Y").strftime("%Y-%m-%d")
 
                         #test print
                         #print(id + ";" + node_id + ";" + formated_date + ";" + time_ + ";" + article_id + ";" + amount + "\n")
@@ -68,9 +67,9 @@ def clean_and_sumamrize_sales_data(file_path, source_file_name, file_dates, sour
                         #write line with clened text
                         target_file.write(id + ";" + node_id + ";" + formated_date + ";" + time_ + ";" + article_id + ";" + amount + "\n")
 
+def main():
 
-
-if __name__ == "__main__":
+    '''Clears ans summarizes sales data.'''
 
     #parameters
 
@@ -83,3 +82,8 @@ if __name__ == "__main__":
     target_file_type = ".csv"
 
     clean_and_sumamrize_sales_data(file_path, source_file_name, souce_file_dates, source_file_type, target_file_name, target_file_type)
+
+
+if __name__ == "__main__":
+
+    main()

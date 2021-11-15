@@ -1,11 +1,10 @@
 
 ###############################################################################################
 
-'''This scripts assigns a random address to a customer within a certain GKZ (Gemeindekennzeichen)
+''' This scripts assigns a random address to a customer within a certain GKZ (Gemeindekennzeichen)
     It Creates a output file with the result.'''
 
 ###############################################################################################
-
 
 
 def assign_random_adress_within_gkz_to_customer(directory, customers_file_name, number_of_customers_file_name, addresses_file_name, output_file_name):
@@ -83,7 +82,9 @@ def assign_random_adress_within_gkz_to_customer(directory, customers_file_name, 
                 #write down assigned address
                 output_file.write(output_str)
 
-if __name__ == "__main__":
+def main():
+
+    '''Assign a random address to a customer within a certain GKZ.'''
 
     #parameters
     
@@ -94,3 +95,8 @@ if __name__ == "__main__":
     output_file_name = "customers.csv"
 
     assign_random_adress_within_gkz_to_customer(directory, customers_file_name, number_of_customers_file_name, addresses_file_name, output_file_name)
+
+if __name__ == "__main__":
+
+    main()
+

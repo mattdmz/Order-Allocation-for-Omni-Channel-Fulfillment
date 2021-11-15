@@ -5,7 +5,9 @@
 
 ###############################################################################################
 
+
 from pandas.core.frame import DataFrame
+from typing import Union
 
 from database.constants import ID
 
@@ -60,6 +62,14 @@ def fill_nan_in_df_with_zeros(df:DataFrame)-> DataFrame:
 
     return df
 
+def count_occurrences(df:DataFrame, column:Union[str, int], value_to_count:Union[str, int]) -> int:
+
+    '''Counts the number of occurrences of a certain value in a DataFrame column.'''
+
+    try:
+        return df[column].value_counts()[value_to_count]
     
+    except KeyError:
+        return 0
         
     

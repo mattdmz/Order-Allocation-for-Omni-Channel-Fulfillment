@@ -1,4 +1,10 @@
 
+###############################################################################################
+
+'''This file contains a script to test database views.'''
+
+###############################################################################################
+
 from mysql.connector.errors import DatabaseError
 
 from database.connector import Database

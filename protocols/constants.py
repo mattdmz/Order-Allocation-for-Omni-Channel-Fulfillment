@@ -5,8 +5,6 @@
 
 ###############################################################################################
 
-from datetime import datetime
-
 
 # allocation protocol file
 
@@ -24,8 +22,11 @@ STRATEGY = "strategy"
 
 ALLOCATIONS_PROTOCOL_FILE_NAME = "_allocations_protocol"
 DAILY_RESULTS_FILE_NAME = "_daily_results"
-OVERALL_RESULTS_FILE_NAME = "_overall_results"
+DAILY_SUMMARY = "_daily_summary"
+OPT_PROTOCOL_FILE_NAME = "_optimization_protocol_"
 ORDERS_EVALUATION_FILE_NAME = "_order_evaluation"
+OVERALL_RESULTS_FILE_NAME = "_overall_results"
+OVERALL_SUMMARY = "_overall_summary"
 PARAMETERS_FILE_NAME = "_parameters"
 SALES_EVALUATION_FILE_NAME = "_sales_evaluation"
 
@@ -33,15 +34,22 @@ SALES_EVALUATION_FILE_NAME = "_sales_evaluation"
 
 # overall results
 
+ALGORITHM_USED = "algorithm_used"
 AVG_DISTANCE = "avg_distance"
 AVG_DELIVERY_DURATION = "avg_delivery_duration_per_order"
 DELIVERED_ORDERS = "delivered"
 DELIVERY_DURATION = "delivery_duration"
+DELIVERY_UNEXECUTABLE = "delivery_unexecutable"
 DISTANCE = "tot_distance"
-OUT_OF_STOCK = "out_of_stocks"
+FC_ALLOCATION = "fc_allocation"
+MISSING_STOCK = "missing_stock_failure"              
+NODE_TYPE = "node_type"
+OUT_OF_STOCK = "out_of_stock"
+REGULAR_STORE_ALLOCATION = "regular_store_allocation"
 REPLENISHMENTS = "replenished_skus"
 SAMEDAY_DELIVERY = "orders_with_sameday_delivery"
 SAMEDAY_DELIVERY_RATE = "sameday_delivery_rate"
+SMALL_STORE_ALLOCATION = "small_store_allocation"
 
 # ____________________________________________________________________________________________
 

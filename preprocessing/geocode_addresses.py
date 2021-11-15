@@ -1,14 +1,14 @@
 
 ###############################################################################################
 
-'''This script geocodes (latitude and longitude) addresses 
+''' This script geocodes (latitude and longitude) addresses 
     from input file with geopy library.'''
 
 ###############################################################################################    
 
-from geopy import geocoders as gc
-
 def geocode_addresses(directory, input_file_name, output_file_name):
+
+    from geopy import geocoders as gc
 
     #active geocoder
     geolocator = gc.Nominatim(user_agent='test')
@@ -44,8 +44,9 @@ def geocode_addresses(directory, input_file_name, output_file_name):
             #test print
             #print(location_str)
 
+def main():
 
-if __name__ == "__main__":
+    '''Geocode set of adderesses.'''
 
     #parameters
 
@@ -54,6 +55,10 @@ if __name__ == "__main__":
     output_file_name = "Geocoded_Addresses.csv"
 
     geocode_addresses(directory, input_file_name, output_file_name)
+
+if __name__ == "__main__":
+
+    main()
 
 
 

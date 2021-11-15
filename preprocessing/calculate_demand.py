@@ -8,40 +8,87 @@
 
 from datetime import date
 from mysql.connector import DatabaseError
+from numpy import double
 from pandas import DataFrame
 
 from database.connector import Database
-from database.constants import ARTICLE_ID, FC, ZIP_REGION
+from database.constants import ARTICLE_ID, FC
 from database.views import Quantity_Of_Articles_Sold_Online, Quantity_Of_Articles_Sold_Offline, Customer_Info
-from dstrbntw.constants import DEMAND, SUM_DEMAND, VAR_DEMAND
-from parameters import DEMAND_ANALYSIS_START, DEMAND_ANALYSIS_END, REGIONAL_DEMAND_GRANULARITY
+from dstrbntw.constants import DEMAND, AVG_DEMAND
+from dstrbntw.nodes import Nodes, Node
+from parameters import DEMAND_ANALYSIS_START, DEMAND_ANALYSIS_END
 from utilities.expdata import write_df
-from utilities.impdata import df_from_file
 
-def demand_per_article_and_node(view:object, start:date, end:date, operator:str):
+def demand_per_article_and_node(operator:str, start:date=DEMAND_ANALYSIS_START, end:date=DEMAND_ANALYSIS_END, export:bool=None):
 
-    ''' Fetches demand data ffrom database for each zip_region and article and stores it in a dataframe.'''
+    ''' Fetches demand data from database for each zip_region and article and stores it in a dataframe.'''
 
     try:
 
-        #connect to db and get cursor
+        # connect to db and get cursor
         with Database() as db:
 
-            reg = Customer_Info(db, column=REGIONAL_DEMAND_GRANULARITY, start=start, end=end).data
+            # import region id's and nodes
+            region_ids = [region_id[0] for region_id in Customer_Info(db, column=FC, start=start, end=end).data]
+            nodes = Nodes()
+            nodes.imp(db)
 
-            df = DataFrame(columns=[ARTICLE_ID, reg])
+            # init DataFrame to store demand data in
+            df = DataFrame()
 
-            for r in reg:
-                if REGIONAL_DEMAND_GRANULARITY == FC:
-                    data = view(db, columns=ARTICLE_ID, operator=operator, start=start, end=end, fc=r[0]).data
-                else: # ZIP_REGION
-                    data = view(db, columns=ARTICLE_ID, operator=operator, start=start, end=end, zip_region=r[0]).data
-            
-                #store data
-                if data is not None:
-                    for row in data:
-                        df.loc[row[0], reg] = row[1]
+            for region_id in region_ids:
+                region_id:int
 
+                # import regional demand data
+                online_article_demand = Quantity_Of_Articles_Sold_Online(db, columns=ARTICLE_ID, operator=operator, start=start, end=end, fc=region_id).data
+                
+                # import regions's nodes
+                regional_nodes = [node for node in nodes.dict.values() if node.fc == region_id]
+
+                for node in regional_nodes:
+                    node:Node
+
+                    # add new column for node
+                    df[node.id] = float(0)
+
+                    # store online demand data at all nodes
+                    if online_article_demand is not None:
+                        for row in online_article_demand:
+
+                            # extract data
+                            article_id = row[0]
+                            regional_demand = row[1]
+                            try:
+                                if operator == "sum":
+                                    df.loc[article_id, node.id] += float(regional_demand)
+
+                                else: # "var" -> use max btw. offline and online
+                                    df.loc[article_id, node.id] = max(df.loc[article_id, node.id], float(regional_demand))
+                            except KeyError:
+                                df.loc[article_id, node.id] = float(regional_demand)
+                    
+                    # import offline demand data
+                    offline_article_demand = Quantity_Of_Articles_Sold_Offline(db, columns=ARTICLE_ID, operator=operator, start=start, end=end, node_id=node.id).data
+
+                    # store online demand data at all nodes
+                    if offline_article_demand is not None:
+                        for row in offline_article_demand:
+
+                            # extract data
+                            article_id = row[0]
+                            node_demand = row[1]
+                            try:
+                                if operator == "sum":
+                                    df.loc[article_id, node.id] += float(node_demand)
+
+                                else: # "var" -> use max btw. offline and online
+                                    df.loc[article_id, node.id] = max(df.loc[article_id, node.id], float(node_demand))
+                            except KeyError:
+                                df.loc[article_id, node.id] = float(node_demand)
+        
+        if export:                       
+            write_df(df, operator + "_" + DEMAND + "_2", header=True, index=True)
+        
         return df
 
     except ConnectionError or DatabaseError as err:      
@@ -49,110 +96,40 @@ def demand_per_article_and_node(view:object, start:date, end:date, operator:str)
         print(err)
         return DataFrame()
 
-
-def merge_demand(operator:str, df_online:DataFrame, df_offline:DataFrame):
-
-    ''' Merges the online and offline demand dataframes based on their field indexes.
-        If operator == "sum", online and offline demand are added togheter.
-        if operator == "var", var demand is determined by max(online, offline). '''
-
-    #iterate through the dataframe
-    for node_id in df_online.columns:
-        for article_id in df_online.index:
-
-            try:
-                if operator == "sum":
-                    #add the online demand to the offline demand
-                    df_offline.loc[article_id, node_id] += df_online.loc[article_id, node_id]
-                else: # "var" -> use max btw. offline and online
-                    df_offline.loc[article_id, node_id] = max(df_online.loc[article_id, node_id], df_offline.loc[article_id, node_id])
-            
-            except KeyError:
-                #if an article is missing in the online demand df as there was no demand for it, add a new index for the article
-                df_offline.loc[article_id, node_id] = df_online.loc[article_id, node_id]
-
-    return df_offline
-
-def overall_demand(operator:str, table:str, df_online:DataFrame=None, df_offline:DataFrame=None, export:bool=None):
-
-    ''' Uses demand passed or imports demand from default data input directory.
-        Calles merge_demand_function.
-        Results can be exported or returned by setting export = True/False. '''
-
-    if df_online is not None and df_offline is not None:
-        # use predetermined demand
-        merged_demand = merge_demand(operator, df_online, df_offline)
-    else:
-        try:
-            # import online and offline demand from default input directory
-            merged_demand = merge_demand(operator, df_from_file(table + "_online", index_col=0), df_from_file(table + "_offline", index_col=0))
-        except FileNotFoundError as err:
-            print(err)
-            exit()
-
-    #check if result sould be exported
-    if export:
-        write_df(merged_demand, operator + "_" + DEMAND, header=True, index=True)
-    else:
-        return merged_demand
-
-def average_demand(df_online:DataFrame=None, df_offline:DataFrame=None, start:date=None, end:date=None, export:bool=None):
+def average_demand(df:DataFrame, start:date=DEMAND_ANALYSIS_START, end:date=DEMAND_ANALYSIS_END, export:bool=None):
 
     ''' Imports sum_demand file from default data input directory.
         Divides sum of demand with the number of days between start and end
         of demand analysis to get the average daily demand for each article and location
         (zip_region, fc, node).'''
 
-    # get demand
-    df = overall_demand("sum", df_online, df_offline)
-
-    #use default dates if not specified
-    if start is None:
-        start = DEMAND_ANALYSIS_START
-    
-    if end is None:
-        end = DEMAND_ANALYSIS_END
-
-    #divide total demand by number of days in period of analysis to get average daily demand
+    # divide total demand by number of days in period of analysis to get average daily demand
     number_of_days = (end - start).days
 
-    #calculate daily average demand
+    # calculate daily average demand
     sum_demand = df.to_numpy()
     daily_avg_demand = sum_demand / number_of_days
     avg_demand = DataFrame(daily_avg_demand, columns=df.columns.values, index=df.index.values)
 
-    #check if result sould be exported
+    # check if result sould be exported
     if export:
-        write_df(avg_demand, "avg_" + DEMAND, header=True, index=True)
-    else:
-        return avg_demand
-
-def determine_online_and_offline_demand(operator:str, start:date=None, end:date=None, export:bool=None):
-
-    ''' Manages queries to fetchdemand from database and exports/returns results.'''
-
-    #use default dates if not specified
-    if start is None:
-        start = DEMAND_ANALYSIS_START
+        write_df(avg_demand, AVG_DEMAND, header=True, index=True)
     
-    if end is None:
-        end = DEMAND_ANALYSIS_END
-        
-    df_online = demand_per_article_and_node(Quantity_Of_Articles_Sold_Online, start, end, operator)
-    df_offline = demand_per_article_and_node(Quantity_Of_Articles_Sold_Offline, start, end, operator)
+    return avg_demand
 
-    if export:
-        write_df(df_online, operator + "_" + DEMAND + "_online", header=True, index=True)
-        write_df(df_offline, operator + "_" + DEMAND + "_offline", header=True, index=True)
-    else:
-        return df_online, df_offline
+def main():
+
+    '''Calculates sum, avg and variance demand between start end end period.'''
+
+    sum_demand = demand_per_article_and_node("sum", export=True)
+    average_demand(sum_demand, export=True)
+    demand_per_article_and_node("variance", export=True)
 
 if __name__ == "__main__":
 
-    determine_online_and_offline_demand("sum", export=True)
-    determine_online_and_offline_demand("var", export=True)
+    main()
 
-    overall_demand("sum", SUM_DEMAND, export=True)
-    overall_demand("var", VAR_DEMAND, export=True)
 
-    average_demand("avg", export=True)
+
+
+    

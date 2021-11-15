@@ -68,16 +68,13 @@ class Optimizer(Allocator):
             candidates = self.Neighbourhood_Generator.shuffle(candidates)
 
             # check restriction for current candidate
-            candidate = node_index 
+            candidate = 0#node_index 
 
             while not self.restrictions_met(order_index, candidate) and len(candidates) > 0:
                 
-                seed[order_index] = node_index
+                #seed[order_index] = node_index
+                pass
             
-            
-
-
-
         return seed
 
     def calc_fitness(self, order_index:int, neighbour_index:int, current_node_index:int) -> float:

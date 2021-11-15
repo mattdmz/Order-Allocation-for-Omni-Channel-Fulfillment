@@ -1,7 +1,7 @@
 
 ###############################################################################################
 
-'''This script merges addresses with zip-code and city 
+''' This script merges addresses with zip-code and city 
     based on SKZ (Strassenkennzeichen) and GKZ (Gebietskennzeichen).'''
 
 ###############################################################################################
@@ -53,8 +53,9 @@ def create_address(addresses_path, streets_path, output_path):
             #write address
             output_file.write(gkz + ";" + address + ";" + zip_code + ";" + city + "\n")
 
+def main():
 
-if __name__ == "__main__":
+    '''Merge address data.'''
 
     #parameters
 
@@ -69,3 +70,7 @@ if __name__ == "__main__":
     output_path = directory + output_file_name + file_type
 
     create_address(addresses_path, streets_path, output_path)
+
+if __name__ == "__main__":
+
+    main()

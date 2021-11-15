@@ -56,7 +56,7 @@ class Stock():
         '''Returns the max. stock quantity an article at a node should have after replenishment.'''
         
         duration = RPL_CYCLE_DURATION + PLANED_STOCK_DURATION[abc_category]
-        return int(floor(duration * avg_daily_demand + ppf * sqrt((duration) * variance_demand)))
+        return int(ceil(duration * avg_daily_demand + ppf * sqrt((duration) * variance_demand)))
 
     def set_fix_stock_level(self) -> array:
 

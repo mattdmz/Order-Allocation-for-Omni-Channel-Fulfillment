@@ -23,7 +23,7 @@ def main(experiment:Experiment) -> None:
     from protocols.results import Result_Protocols
 
     try:
-        result_protocols = Result_Protocols(experiment.output_dir_path, experiment.run_id)
+        result_protocols = Result_Protocols(experiment.output_dir_path, experiment.run_id, experiment.allocation_method)
     
     except OSError as err:
         print(err)       
