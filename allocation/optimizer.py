@@ -2,32 +2,29 @@
 from copy import deepcopy
 from datetime import datetime
 from numpy import array, flip, random as np_random, sort
-from os import path
 from pandas import DataFrame
 from typing import Union
 
 from allocation.constants import DELIVERY
 from allocation.allocator import Allocator
-from configs import OUTPUT_DIR
 from dstrbntw.constants import CUSTOMER
 from dstrbntw.delivery import Delivery
 from dstrbntw.nodes import Node
 from dstrbntw.region import Region
 from parameters import MAX_PAL_VOLUME
-from protocols.constants import BEST_OBJ_VALUE, ITER, OBJ_VALUE, RUN_ID, STRATEGY
+from protocols.constants import BEST_OBJ_VALUE, ITER, OBJ_VALUE, STRATEGY
 from transactions.orders import Order
-from utilities.expdata import write_df
 
 class Optimizer(Allocator):
 
     '''Parent class for all optimizers.'''
 
-    def __init__(self, region: Region, current_time: datetime, cut_off_time: datetime, main) -> None:
+    def __init__(self, region: Region, current_time: datetime, main) -> None:
         
         ''' Inits Allocator parents class and creates an allocation to be used as seed (starting allocation)
             for the optimizaiton.'''
 
-        super().__init__(region, current_time, cut_off_time)
+        super().__init__(region, current_time)
 
         # store main method of child class
         self.main = main
@@ -45,7 +42,6 @@ class Optimizer(Allocator):
         # run algorithm, evaluate and store result
         allocation = self.main(seed_allocation, seed_obj_value)
         self.store_allocation(self.evaluate(allocation))
-        self.export_protocol()
 
     def init_protocol(self) -> DataFrame:
 
@@ -57,17 +53,18 @@ class Optimizer(Allocator):
 
         '''Returns a seed (allocation) for the optimization.'''
 
-        allocatable = False
+        candidates = self.nodes.indexes_of_accepting_orders
+        random_seed = self.Neighbourhood_Generator.random(candidates, len(self.orders.list))
+        seed = deepcopy(random_seed)
 
-        while not allocatable:
+        for order_index, node_index in enumerate(random_seed):
+            order_index:int
+            node_index:int
 
-            seed = self.Neighbourhood_Generator.random(candidates=self.nodes.accepting_orders, size=len(self.orders) -1)
+            if self.restrictions_met(order_index, node_index):
+                seed[order_index] = node_index
 
-            for order_index, node_index in enumerate(seed):
-                order_index:int
-                node_index:int
 
-                allocatable = self.restrictions_met(order_index, node_index)
 
         return seed
 
@@ -124,44 +121,37 @@ class Optimizer(Allocator):
 
         ''' Returns True or False based depending if the proposed node_index
             is a valid allocation for the order.'''
-
-        # check if node can currently recieve orders
-        if self.node_available(node_index):
             
-            # get order
-            order = self.orders.__get__(order_index) #type: Order
-            
-            if self.stock_available(order, node_index):
+        # get order
+        order = self.orders.__get__(order_index) #type: Order
+        
+        if self.stock_available(order, node_index):
 
-                # check order deliverability (vehicle volume restrictions, scheduling of order proc and delivery restrictions)
-                delivery = self.order_deliverable(order, node_index) #
+            # check order deliverability (vehicle volume restrictions, scheduling of order proc and delivery restrictions)
+            delivery = self.order_deliverable(order, node_index)
 
-                if delivery is not None:
-                    
-                    # replace tour
-                    setattr(self.nodes.__get__(index=node_index), DELIVERY, delivery)
+            if delivery is not None:
                 
-                    return True 
+                # replace tour
+                setattr(self.nodes.__get__(index=node_index), DELIVERY, delivery)
+            
+                return True 
         
         return False
 
-    def export_protocol(self) -> None:
-
-        ''' Exports the protocol of an optimization run directly to the output driectory.
-            Delets the protocol.'''
-
-        write_df(   self.protocol, RUN_ID + "_optimization_protocol_" + self.current_time, 
-                    path.join(OUTPUT_DIR, RUN_ID), header=True, index=True)
-
-        del self.protocol
-
     class Neighbourhood_Generator: 
 
-        def random(self, candidates:list, size:int) -> array:
+        def random(candidates:list, size:int) -> array:
 
             '''Generates a random neighbourhood with elements from candidate list.'''
 
             return np_random.choice(candidates, size=size)
+
+        def shuffle(candidates:list) -> array:
+
+            '''Shuffles the candidate list.'''
+
+            return np_random.shuffle(candidates)
 
 
 
