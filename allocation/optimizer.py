@@ -53,16 +53,28 @@ class Optimizer(Allocator):
 
         '''Returns a seed (allocation) for the optimization.'''
 
-        candidates = self.nodes.indexes_of_accepting_orders
-        random_seed = self.Neighbourhood_Generator.random(candidates, len(self.orders.list))
+        # init a seed
+        random_seed = self.init_allocation_array()
         seed = deepcopy(random_seed)
 
-        for order_index, node_index in enumerate(random_seed):
-            order_index:int
-            node_index:int
+        # get candidate nodes for allocation
+        candidates = self.nodes.indexes_of_accepting_orders
 
-            if self.restrictions_met(order_index, node_index):
+        # try to allocate and meeting restrictions for as much orders as possible
+        for order_index in random_seed:
+            order_index:int
+
+            # shuffle candidates
+            candidates = self.Neighbourhood_Generator.shuffle(candidates)
+
+            # check restriction for current candidate
+            candidate = node_index 
+
+            while not self.restrictions_met(order_index, candidate) and len(candidates) > 0:
+                
                 seed[order_index] = node_index
+            
+            
 
 
 
