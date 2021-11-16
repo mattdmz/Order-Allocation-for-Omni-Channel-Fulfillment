@@ -7,13 +7,14 @@
 
 from copy import deepcopy
 from datetime import datetime
-from numpy import array
+from numpy import array, Infinity
 from pandas import Series
+from timeit import default_timer as timer
 
 from allocation.constants import OPTIMIZER, TABU_ADD, TABU_DROP
 from allocation.optimizer import Optimizer
 from dstrbntw.region import Region
-from protocols.constants import ALLOC_ARR, BEST_OBJ_VALUE, ITER, OBJ_VALUE, STRATEGY
+from protocols.constants import ALLOC_ARR, BEST_OBJ_VALUE, CUR_TIME, ITER, OBJ_VALUE, STRATEGY
 
 
 class Tabu_Search(Optimizer):
@@ -26,14 +27,16 @@ class Tabu_Search(Optimizer):
 
         ''' Inits parent class for optimizers and 
             sets parameters for Tabu Search algorithm.'''
-        
-        super().__init__(region, current_time, self.main)
 
+        # set parameters
         self.memory_list = []
         self.memory_length = 5
-        self.max_iter = 1000
+        self.max_iter = 50
         self.max_iter_since_improvement = 8
-        self.change_restart_strategy = 1
+        self.change_restart_strategy = 2
+        
+        # init parent solution
+        super().__init__(region, current_time, self.main)
 
     @property
     def best_allocation(self) -> array:
@@ -69,22 +72,50 @@ class Tabu_Search(Optimizer):
 
         return True if self.memory_list[len(self.memory_list) -1][OBJ_VALUE] < new_obj_value else False
 
-    def is_tabu(self, tabu_list:dict, order_index:int) -> bool:
+    def is_tabu(self, tabu_list:dict, key:int) -> bool:
 
-        '''Returns True or False depending if the order_index is tabu.'''
+        '''Returns True or False depending if the order_index/node_index is tabu.'''
         
         try:
-            if tabu_list[order_index]:
+            if tabu_list[key]:
                 return True
         except KeyError:
                 return False
 
-    def update_tabu_list(self, tabu_list:dict, order_index:int, tabu_tenure:int, iter:int) -> None:
+    # def candiates_tabu_check(self, tabu_add:dict, candidates:array) -> array:
+
+    #     ''' Sets tabu active candidates to - infinite in candidates array.
+    #         Returns an array of non tabu candidates.'''
+
+    #     non_tabu_candidates = deepcopy(candidates)
+
+    #     for index, node_index in enumerate(candidates):
+            
+    #         # check if index in tabu active
+    #         if self.is_tabu(tabu_add, node_index):
+    #             non_tabu_candidates[index] = -Infinity
+
+    #     return non_tabu_candidates
+
+    # def neighbourhood_tabu_check(self, tabu_drop:dict, neighbourhood:array) -> array:
+
+    #     ''' Sets tabu actice neighbours to - infinite in neighbours array.
+    #         Returns an array of non tabu candidates.'''
+
+    #     for order_index in range(len(neighbourhood)):
+            
+    #         # check if index in tabu active
+    #         if self.is_tabu(tabu_drop, order_index):
+    #             neighbourhood[order_index] = -Infinity
+
+    #     return neighbourhood
+
+    def update_tabu_list(self, tabu_list:dict, index:int, tabu_tenure:int, iter:int) -> None:
 
         ''' Adds move to tabu list and 
             removes moves from tabu list which are not valid anymore.'''
 
-        tabu_list[order_index] = iter + tabu_tenure
+        tabu_list[index] = iter + tabu_tenure
 
         for key, tabu_stop_iter in list(tabu_list.items()):
             if iter >= tabu_stop_iter:
@@ -146,14 +177,18 @@ class Tabu_Search(Optimizer):
 
         # set starting values
         iter = 0
+        iter_since_improvement = 0
         restart_trial = 0
         memory_list_restart_index = 0
         orders_to_allocate = len(new_allocation)
         best_obj_value = obj_value
         current_strategy = self.restart_memory_based.__name__
         tabu_add = {}                  # format tabu_add[node_index]: iteration the tabu ends(iter + tabu_add_tenure)
-        tabu_drop = {}                 # format tabu_add[order_index, node_index]: iteration the tabu ends(iter + tabu_drop_tenure)
+        tabu_drop = {}                 # format tabu_drop[order_index]: iteration the tabu ends(iter + tabu_drop_tenure)
         frequency = self.init_frequency(candidates, orders_to_allocate)
+
+        # start timing
+        timing_start = timer()
 
         while iter <= self.max_iter:
 
@@ -183,8 +218,15 @@ class Tabu_Search(Optimizer):
                         # update tabu_drop lists
                         self.update_tabu_list(tabu_add, self.tabu_add_tenure(iter, orders_to_allocate), order_index, iter)
 
+                        # deallocate current node, if its alloation was previously valid 
+                        if node_index >= 0:
+                            self.deallocate(self.orders.list[order_index], new_allocation[order_index])
+
                         # carry out move
                         new_allocation[order_index] = node_index
+
+                        # allocate neighbour
+                        self.allocate(self.orders.list[order_index], node_index)
 
                         # update allocation ad frequency for order_index
                         frequency[order_index][node_index] += 1
@@ -192,16 +234,25 @@ class Tabu_Search(Optimizer):
                         # update tabu_drop list
                         self.update_tabu_list(tabu_drop, self.tabu_drop_tenure(iter, orders_to_allocate), order_index, iter)
 
+                        print("apprix_val: ", approx_obj_value)
+                        self.prepare_evaluation()
+                        print("obj_val: ", self.evaluation_model.objective_function(new_allocation))
+
                         # check if allocation is worth memorizing
                         if self.memorable(approx_obj_value):
 
-                            self.memorize({ITER: iter, ALLOC_ARR:deepcopy(new_allocation), OBJ_VALUE:approx_obj_value, TABU_ADD: deepcopy(tabu_add), TABU_DROP: deepcopy(tabu_drop)})
+                            self.prepare_evaluation()
+                            self.memorize({ ITER: iter, 
+                                            ALLOC_ARR:deepcopy(new_allocation), 
+                                            OBJ_VALUE:self.evaluation_model.objective_function(new_allocation), 
+                                            TABU_ADD: deepcopy(tabu_add), 
+                                            TABU_DROP: deepcopy(tabu_drop)
+                            })
 
                         # update aspiration criteria if new_allocation has best_obj_value
                         if approx_obj_value > best_obj_value:
 
-                            print("iter: ", iter, ", obj_value: ", best_obj_value, ", improvement: ", approx_obj_value - best_obj_value, \
-                                        "tabu_list_len: ", self.tabu_add_tenure(iter, orders_to_allocate), new_allocation)
+                            print("iter: ", iter, ", obj_value: ", best_obj_value, ", improvement: ", approx_obj_value - best_obj_value, "tabu_list_len: ", self.tabu_add_tenure(iter, orders_to_allocate), new_allocation)
 
                             best_obj_value = approx_obj_value
                             iter_since_improvement = 0
@@ -212,7 +263,11 @@ class Tabu_Search(Optimizer):
                             iter_since_improvement += 1
 
                         # protocol iteration
-                        self.protocol.append(Series({OBJ_VALUE: approx_obj_value, BEST_OBJ_VALUE: best_obj_value, STRATEGY: current_strategy}, name=iter))
+                        self.protocol.append(Series({   OBJ_VALUE: approx_obj_value, 
+                                                        BEST_OBJ_VALUE: best_obj_value, 
+                                                        STRATEGY: current_strategy,
+                                                        CUR_TIME: timer()
+                        }, name=iter))
 
                         # check if searching process is apparently stuck in local maximum
                         if iter_since_improvement > self.max_iter_since_improvement:

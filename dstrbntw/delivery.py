@@ -144,11 +144,13 @@ class Delivery(Vehicle):
 
             if stop == order.delivery_index + 1: # + 1 because route stops are retrieved from volumes having depot at index position 0
                 break
+        
+        if not (index == len(self.routes)  and  stop == order.delivery_index + 1):
+            
+            for i in range(index, len(self.routes)):
+                i:int
 
-        for i in range(index, len(self.routes)):
-            i:int
-
-            self.routes[i] -= 1
+                self.routes[i] -= 1
 
     def add_order(self, order:Order) -> array:
 

@@ -71,42 +71,7 @@ class Allocator:
                 break
         
         return availability
-
-    def reserve_stock(self, order:Order, node_index:int):
-
-        '''Reserves the amoutn of stock demanded in order.'''
-
-        for line in order.lines:
-            line:Order.Line
-            
-            self.stock.reserve(line.article.index, node_index, line.quantity)
-
-    def sell(self, sale:Sale) -> float:
-
-        ''' Sets True or False if each saleline of the saleline can be closed or not 
-            depending if stock is available to satisfy the demanded quantity of each saleline.
-            If stock is available, the demanded quantity is consumed and returned and the realized revenue 
-            is collected for each saleline.'''
-
-        revenue = 0
-        pieces_sold = 0
-
-        # check if there is enough stock available
-        for line in sale.lines:
-            line:Sale.Line
-            
-            if self.stock.processability(line.article.index, sale.node.index, line.quantity):
-                
-                # consume demanded stock
-                self.stock.consume(line.article.index, sale.node.index, line.quantity)
-
-                # collect revenue from saleline
-                line.closed = True
-                revenue += line.article.price * line.quantity
-                pieces_sold += line.quantity
-
-        return revenue, pieces_sold
-            
+   
     def node_available(self, node_index:int) -> bool:
 
         '''Returns True or False depending if the node is currently accepting orders.'''
@@ -136,6 +101,65 @@ class Allocator:
         else:
             return None
 
+    def candidates(self, order:Order) -> list:
+
+        ''' Returns a list of candidate node sfor a certain order 
+            based on if the node is available and it holds the required stock.'''
+
+        candidates = []
+        nodes_accepting_orders = self.nodes.accepting_orders
+
+        for node in nodes_accepting_orders:
+
+            if self.stock_available(order, node.index):
+                candidates.append(node)
+
+        return candidates
+
+    def reserve_stock(self, order:Order, node_index:int):
+
+        '''Reserves the amount of stock demanded in order.'''
+
+        for line in order.lines:
+            line:Order.Line
+            
+            self.stock.reserve(line.article.index, node_index, line.quantity)
+
+    def cancel_stock_reservation(self, order:Order, node_index:int):
+
+        '''Cancels the reservation for the quantity demanded in order.'''
+
+        for line in order.lines:
+            line:Order.Line
+            
+            self.stock.cancel_reservation(line.article.index, node_index, line.quantity)
+
+    def sell(self, sale:Sale) -> float:
+
+        ''' Sets True or False if each saleline of the saleline can be closed or not 
+            depending if stock is available to satisfy the demanded quantity of each saleline.
+            If stock is available, the demanded quantity is consumed and returned and the realized revenue 
+            is collected for each saleline.'''
+
+        revenue = 0
+        pieces_sold = 0
+
+        # check if there is enough stock available
+        for line in sale.lines:
+            line:Sale.Line
+            
+            if self.stock.processability(line.article.index, sale.node.index, line.quantity):
+                
+                # consume demanded stock
+                self.stock.consume(line.article.index, sale.node.index, line.quantity)
+
+                # collect revenue from saleline
+                line.closed = True
+                revenue += line.article.price * line.quantity
+                pieces_sold += line.quantity
+
+        return revenue, pieces_sold
+         
     def allocatable(self, order:Order, node_index:int) -> int:
             
         ''' Returns 1 if an order is allocatable at the examined node.
@@ -174,20 +198,40 @@ class Allocator:
 
         '''Allocates order to node.'''
 
+        # set allocation
         order.allocated_node = self.nodes.__get__(index=node_index)
         order.allocation_time = self.current_time
 
         # reduce available stock
         self.reserve_stock(order, node_index)
 
+        # add order to delivery tour
+        if self.__type__ == OPTIMIZER:
+            
+            # add order to delivery tour
+            order.allocated_node.delivery.add_order(order)
+        
+        # creae batches if there is more than 1 order to deliver
+        if len(order.allocated_node.delivery.orders_to_deliver) >= 1:
+        
+            # schedule tour and its order processing
+            order.allocated_node.delivery.create_batches(self.current_time)
+
+    def deallocate(self, order:Order, node_index:int) -> None:
+
+        '''Dellocates order from node.'''
+
+        order.allocated_node = None
+        order.allocation_time = None
+
+        # reduce available stock
+        self.cancel_stock_reservation(order, node_index)
+
         # reduce available delivery tour capacity and reschedule delivery batches
         delivery = self.nodes.__getattr__(DELIVERY, index=node_index) #type: Delivery
         
-        # creae batches if there is more than 1 order to deliver
-        if len(delivery.orders_to_deliver) >= 1:
-        
-            # schedule tour and its order processing
-            delivery.create_batches(self.current_time)
+        # remove order from delivery
+        delivery.remove_order(order)
 
     def prepare_evaluation(self) -> None:
 
