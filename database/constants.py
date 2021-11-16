@@ -12,6 +12,7 @@
 ARTICLE_ID = "article_id"
 CUSTOMER_ID = "customer_id"
 DATE = "its_date"
+DATETIME = "its_datetime"
 DATE_TIME = "date_time"
 FC = "fc"
 ID = "id"

@@ -133,7 +133,7 @@ class Transactions_in_Period():
         self.name = Transactions_in_Period.__name__
         self.sql = (f"SELECT {table[0]}.{columns if columns is not None else '*'} "
                     f"FROM {table} as {table[0]} {Join.customers(fc) if table == ORDERS else Join.nodes(fc)}"
-                    f"WHERE {f'{Conditions.date_time_cast(table[0], start=start, end=end)}' if start is not None or end is not None else ''} "
+                    f"WHERE {f'{Conditions.date_time(DATETIME, table[0], start=start, end=end)}' if start is not None or end is not None else ''} "
                     f"{'AND ' if (start is not None or end is not None) and fc is not None else ''}"
                     f"{f'{CUSTOMERS[0] if table == ORDERS else NODES[0]}.{ID} = {table[0]}.{CUSTOMER_ID if table == ORDERS else NODE_ID} ' if fc is not None else ''}"
                     f"{'AND ' if fc is not None else ''}" 

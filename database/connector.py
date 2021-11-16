@@ -8,6 +8,7 @@
 
 from database.constants import CONFIG, NAME
 from mysql import connector
+from time import sleep
 
 
 class NoDataError(Exception):
@@ -57,30 +58,41 @@ class Database:
 
         '''executes passed view'''
 
-        try:
-            #excecute query with cursor of database
-            self.cursor.execute(view.sql)
+        # set counter for trials
+        trials = 0
+
+        # try to connect max 2 times, else throw error
+        while trials <=3:
+
+            try:
+                #excecute query with cursor of database
+                self.cursor.execute(view.sql)
+                
+                #fetch data from database according to query
+                data = self.cursor.fetchall()
+
+                #check if data could be fetched
+                if data == []:
+                    #report that query did not fetch any data
+                    raise NoDataError(view.name)
+                return data
             
-            #fetch data from database according to query
-            data = self.cursor.fetchall()
+            except NoDataError as err:
+                pass
+                # print(err)
 
-            #check if data could be fetched
-            if data == []:
-                #report that query did not fetch any data
-                raise NoDataError(view.name)
-            return data
-        
-        except NoDataError as err:
-            pass
-            # print(err)
+            except connector.Error as err:
+                # print error and info to its occurrence
+                err = (f"MySQL {err} \n"
+                       f"Error occured while runnning view '{view.name}' in database '{CONFIG[NAME]}' on trial: {trials}.") 
+                
+                # sleep before retry
+                sleep(10)
+                trials += 1
 
-        except connector.Error as err:
-            #print error and info to its occurrence
-            err = (f"MySQL {err} \n"
-                   f"Error occured while runnning view '{view.name}' in database '{CONFIG[NAME]}'.")  
-            raise ConnectionError(err)
+            except connector.DatabaseError as err:
+                raise connector.DatabaseError(err)
 
-        except connector.DatabaseError as err:
-            raise connector.DatabaseError(err)
+        raise connector.Error(err)
 
 
