@@ -10,6 +10,7 @@
 
 ALLOC_ARR = "allocation"
 BEST_OBJ_VALUE = "best_obj_value"
+CUR_TIME = "time"
 ITER = "iteration"
 OBJ_VALUE = "objective_value"
 REGION_ID = "region_id"
