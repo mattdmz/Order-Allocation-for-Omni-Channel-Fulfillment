@@ -32,7 +32,7 @@ class Nearest_Nodes(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order) -> array:
+    def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes 
             in ascending order based on the distance to the order's delivery location.'''
@@ -40,7 +40,7 @@ class Nearest_Nodes(Rule):
         indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
         distances = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
-        for i, node in enumerate(self.nodes.dict.values()):
+        for i, node in enumerate(candidates):
             i:int
             node:Node
 
@@ -62,7 +62,7 @@ class Chepest_Direct_Delivery(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order) -> array:
+    def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes 
             in ascending order based on the the order's delivery costs is the delivery vehicle was driving there directly.'''
@@ -70,7 +70,7 @@ class Chepest_Direct_Delivery(Rule):
         indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
         trsp_costs = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
-        for i, node in enumerate(self.nodes.dict.values()):
+        for i, node in enumerate(candidates):
             i:int
             node:Node
 
@@ -104,7 +104,7 @@ class Cheapest_Delivery(Rule):
               - (node.delivery.tot_duration * node.route_rate) \
               + (node.tour_rate if len(node.delivery.batches) == 0 else 0)
 
-    def main(self, order:Order) -> array:
+    def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on expected delivery costs of allocating 
@@ -113,7 +113,7 @@ class Cheapest_Delivery(Rule):
         indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
         expected_costs = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
-        for i, node in enumerate(self.nodes.dict.values()):
+        for i, node in enumerate(candidates):
             i:int
             node:Node
             
@@ -135,20 +135,17 @@ class Nearest_Already_Allocated_Nodes(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order) -> array:
+    def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on the distance to the other already allocated order's delivery location.'''
-
-        # check if there are enough orders for the algorithm to provide variety
-        nodes_allocated_to = [node.index for node in self.nodes.dict.values() if len(node.delivery.batches) > 0]
 
         indexes = []
         not_allocated_indexes = []
         distances = []
         not_allocated_distances = []
 
-        for node in self.nodes.dict.values():
+        for node in candidates:
             node:Node
 
             if len(node.delivery.batches) > 0:
@@ -179,7 +176,7 @@ class Allocation_Of_Nearest_Order(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order) -> array:
+    def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on the smallest distance 
@@ -191,7 +188,7 @@ class Allocation_Of_Nearest_Order(Rule):
         distances = []
         not_allocated_distances = []
 
-        for node in self.nodes.dict.values():
+        for node in candidates:
             node:Node
 
             if len(node.delivery.batches) > 0:
@@ -233,7 +230,7 @@ class Longest_Stock_Duration(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order) -> array:
+    def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on the operator (min, median, max) of stock duration 
@@ -242,7 +239,7 @@ class Longest_Stock_Duration(Rule):
         indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
         stock_duration = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
-        for i, node in enumerate(self.nodes.dict.values()):
+        for i, node in enumerate(candidates):
             i:int
             node:Node
 
@@ -267,7 +264,7 @@ class Dynamic_1(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order) -> array:
+    def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on marginal holding and backorder costs of allocating 
@@ -276,7 +273,7 @@ class Dynamic_1(Rule):
         indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
         marginal_costs = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
-        for i, node in enumerate(self.nodes.dict.values()):
+        for i, node in enumerate(candidates):
             i:int
             node:Node
             
@@ -298,7 +295,7 @@ class Modified_Dynamic_1(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order) -> array:
+    def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on expected costs of allocating 
@@ -307,7 +304,7 @@ class Modified_Dynamic_1(Rule):
         indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
         expected_costs = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
-        for i, node in enumerate(self.nodes.dict.values()):
+        for i, node in enumerate(candidates):
             i:int
             node:Node
             
@@ -329,7 +326,7 @@ class Operational_Costs(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def main(self, order:Order) -> array:
+    def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes
             in ascending order based on expected supply and order processing costs of allocating 
@@ -338,7 +335,7 @@ class Operational_Costs(Rule):
         indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
         operational_costs = zeros(shape=(len(self.nodes.dict)), dtype=float64)
 
-        for i, node in enumerate(self.nodes.dict.values()):
+        for i, node in enumerate(candidates):
             i:int
             node:Node
             
