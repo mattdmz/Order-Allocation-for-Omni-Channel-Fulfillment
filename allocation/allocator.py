@@ -115,7 +115,7 @@ class Allocator:
                 candidates.append(node)
 
         return candidates
-
+    
     def reserve_stock(self, order:Order, node_index:int):
 
         '''Reserves the amount of stock demanded in order.'''

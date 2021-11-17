@@ -6,6 +6,7 @@
 ###############################################################################################
 
 
+from mysql.connector.errors import DatabaseError
 from database.constants import CONFIG, NAME
 from mysql import connector
 from time import sleep
@@ -54,7 +55,7 @@ class Database:
 
         self.connection.close()
 
-    def fetch_data(self, view):
+    def fetch_data(self, view:object):
 
         '''executes passed view'''
 
@@ -62,7 +63,7 @@ class Database:
         trials = 0
 
         # try to connect max 2 times, else throw error
-        while trials <=3:
+        while trials <= 2:
 
             try:
                 #excecute query with cursor of database
@@ -75,11 +76,12 @@ class Database:
                 if data == []:
                     #report that query did not fetch any data
                     raise NoDataError(view.name)
+                    
                 return data
             
             except NoDataError as err:
-                pass
-                # print(err)
+                pass #print(err)
+                return None
 
             except connector.Error as err:
                 # print error and info to its occurrence
@@ -93,6 +95,6 @@ class Database:
             except connector.DatabaseError as err:
                 raise connector.DatabaseError(err)
 
-        raise connector.Error(err)
+        raise DatabaseError
 
 

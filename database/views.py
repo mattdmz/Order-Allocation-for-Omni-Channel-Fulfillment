@@ -215,7 +215,8 @@ class Articles_Sold():
 
     ''' View returning all articles sold online and offline.
         Drill Downs:
-        - between start and/or ende_date.'''
+        - between start and/or ende_date.
+        - in a certain fc region.'''
 
     def __init__(self, db:Database, columns:str=None, start:date=None, end:date=None, fc:int=None):
 
@@ -242,6 +243,34 @@ class Articles_Sold():
                                                 f"GROUP BY sl.{ARTICLE_ID}) "
                     f"ORDER BY a.{ID} ASC;")
 
+        print(self.sql)
+
+        #fetch data 
+        self.data = db.fetch_data(self)
+
+
+class Articles_Sold_Offline():
+
+    ''' View returning all articles sold offline.
+        Drill Downs:
+        - between start and/or ende_date
+        - in a certain fc region.'''
+
+    def __init__(self, db:Database, columns:str=None, start:date=None, end:date=None, fc:int=None):
+
+        self.name = Articles_Sold_Offline.__name__
+        self.sql = (f"SELECT {columns if columns is not None else '*'} "
+                    f"FROM {ARTICLES} as a "        
+                    f"WHERE a.{ID} IN ("
+                                        f"SELECT sl.{ARTICLE_ID} " 
+                                        f"FROM {SALES} as s, {SALELINES} as sl{Join.nodes(fc)} "
+                                        f"WHERE s.{ID} = sl.{TRSACT_ID} "
+                                                f"{'AND ' if start is not None or end is not None else ''}"
+                                                f"{Conditions.date_time(DATE, 's', start, end)} "
+                                                f"{Conditions.join_ids(fc, 'n', ID, 's', NODE_ID)}"
+                                                f"{Conditions.specific_value('n', FC, fc)}) "
+                    f"ORDER BY a.{ID} ASC;")
+
         #fetch data 
         self.data = db.fetch_data(self)
 
@@ -250,21 +279,23 @@ class Articles_Sold_Online():
 
     ''' View returning all articles sold online.
         Drill downs:
-        - between start and/or ende_date.'''
+        - between start and/or ende_date.
+        - in a specific fc region.'''
 
-    def __init__(self, db:Database, columns:str=None, start:date=None, end:date=None):
+    def __init__(self, db:Database, columns:str=None, start:date=None, end:date=None, fc:int=None):
 
         self.name = Articles_Sold_Online.__name__
         self.sql = (f"SELECT {columns if columns is not None else '*'} "
                     f"FROM {ARTICLES} as a "         
                     f"WHERE a.{ID} IN ("
-                                                f"SELECT ol.{ARTICLE_ID} " 
-                                                f"FROM {ORDERS} as o, {ORDERLINES} as ol "
-                                                f"WHERE o.{ID} = ol.{TRSACT_ID} "
-                                                        f"{'AND ' if start is not None or end is not None else ''}"
-                                                        f"{Conditions.date_time(DATE, 'o', start, end)} "
-                                                f"GROUP BY ol.{ARTICLE_ID} "
-                    f"ORDER BY a.{ID} ASC);")
+                                        f"SELECT ol.{ARTICLE_ID} " 
+                                        f"FROM {ORDERS} as o, {ORDERLINES} as ol{Join.customers(fc)} "
+                                        f"WHERE o.{ID} = ol.{TRSACT_ID} "
+                                                f"{'AND ' if start is not None or end is not None else ''}"
+                                                f"{Conditions.date_time(DATE, 'o', start, end)}"
+                                                f"{Conditions.join_ids(fc, 'c', ID, 'o', CUSTOMER_ID)}"
+                                                f"{Conditions.specific_value('c', FC, fc)}) "
+                    f"ORDER BY a.{ID} ASC;")
 
         #fetch data 
         self.data = db.fetch_data(self)

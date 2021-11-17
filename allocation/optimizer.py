@@ -38,19 +38,16 @@ class Optimizer(Allocator):
         # init a DataFrame to protocol the optimization run
         self.protocol = self.init_protocol()
 
-        # determine candidate nodes for allocation
-        candidates = array(self.nodes.indexes_of_accepting_orders)
-
         # create seed allocation and calc obj value
-        seed_allocation = self.seed(candidates)
-        self.allocate_seed(seed_allocation)
+        seed_allocation = self.seed()
         self.prepare_evaluation()
         seed_obj_value = self.evaluation_model.objective_function(seed_allocation)
 
         # run algorithm
-        allocation = self.main(seed_allocation, seed_obj_value, candidates)
+        allocation = self.main(seed_allocation, seed_obj_value)
         
         # evaluate and store result
+        self.prepare_evaluation()
         self.store_allocation(self.evaluate(allocation))
 
     def init_protocol(self) -> DataFrame:
@@ -59,7 +56,7 @@ class Optimizer(Allocator):
 
         return DataFrame(columns=[OBJ_VALUE, BEST_OBJ_VALUE, STRATEGY, CUR_TIME])
 
-    def seed(self, candidates:list) -> array:
+    def seed(self) -> array:
 
         '''Returns a seed (allocation) for the optimization.'''
 
@@ -68,44 +65,34 @@ class Optimizer(Allocator):
         seed = deepcopy(random_seed)
 
         # try to allocate and meeting restrictions for as much orders as possible
-        for order_index in range(len(random_seed)):
-            order_index:int
+        for index, order in enumerate(self.orders.list):
+            order:Order
 
             # shuffle candidates
-            candidates = self.Neighbourhood_Generator.shuffle(candidates)
+            candiates = self.candidates(order)
+            np_random.shuffle(candiates)
 
             # allocate to first allocatable node_index
-            for node in candidates:
+            for node in candiates:
                 node:Node
 
-                feedback = self.allocatable(self.orders.list[order_index], node.index)
+                feedback = self.allocatable(order, node.index)
 
                 if feedback > 0:
 
                     # allocate to candidate (node_index)
-                    self.allocate(self.orders.list[order_index], node.index)
+                    self.allocate(order, node.index)
                     break
             
-                elif feedback > seed[order_index]:
+                elif feedback > seed[index]:
 
                     # store current best feedback
-                    seed[order_index] = feedback
+                    seed[index] = feedback
             
             # set node_index in seed array (may be negative integer, invalid allocation)
-            seed[order_index] = feedback
+            seed[index] = feedback
             
         return seed
-
-    def allocate_seed(self, seed:array) -> None:
-
-        '''Allocated valid node_indexes of seed (> 0).'''
-
-        for order_index, node_index in enumerate(seed):
-            order_index:int
-            node_index:int
-
-            if node_index >= 0:
-                self.allocate(self.orders.list[order_index], node_index) 
 
     def calc_fitness(self, order_index:int, neighbour_index:int, current_node_index:int) -> float:
 
@@ -161,18 +148,17 @@ class Optimizer(Allocator):
         fitness = []
 
         # calculate fitness value for each neighbour
-        for order_index, neighbour_index in enumerate(neighbourhood):
-
-            # check if node is available with current best allocation
-            neighbour = self.nodes.__get__(index=neighbour_index) # type: Node
+        for order_index, neighbour in enumerate(neighbourhood):
+            order_index:int
+            neighbour:Node
 
             # check if stock is available:
             if neighbour.delivery.on_time(self.current_time):
 
-                if self.stock_available(self.orders.list[order_index], neighbour_index):
+                if self.stock_available(self.orders.list[order_index], neighbour.index):
             
                     # evaluate fitness
-                    fitness.append(self.calc_fitness(order_index, neighbour_index, best_allocation[order_index]))
+                    fitness.append(self.calc_fitness(order_index, neighbour.index, best_allocation[order_index]))
 
                 else:
                     # stock not available
@@ -232,6 +218,9 @@ class Optimizer(Allocator):
         return indexes[distances.argsort()]
 
     class Neighbourhood_Generator: 
+
+        def __init__(self) -> None:
+            pass
 
         def random(candidates:list, size:int) -> list:
 
