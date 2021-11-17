@@ -21,7 +21,7 @@ class ImportModelDataError(Exception):
         self.name_mid_level_error = ImportModelDataError.__name__
         self.mid_level_error = f": An error occured while importing data{' for ' + dict_name if dict_name is not None else ''} from {import_source}. \n"
         self.name_low_level_error = str(err_name) + ": "
-        self.low_level_err = err.args[0] if isinstance(err.args[0], int) else str(err.args[0])
+        self.low_level_err = "something went wrong" if isinstance(err.args[0], int) else err.args[0]
 
         #concatenate error msg
         self.msg = self.name_mid_level_error + self.mid_level_error + self.name_low_level_error + self.low_level_err

@@ -54,7 +54,7 @@ class Customers:
 
         try:
 
-            data = Customers_Buying_Online(db, columns="*", start=start, end=end, fc=fc).data
+            data = Customers_Buying_Online(db, columns="*", start=start, end=end, fc=fc).data #type: list
             
             if data == None:
                 raise NoDataError(Customers_Buying_Online.__name__ + f"for fulfuillment region: {fc}")

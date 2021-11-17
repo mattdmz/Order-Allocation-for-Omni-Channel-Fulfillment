@@ -118,13 +118,15 @@ class Delivery(Vehicle):
 
         '''Removes location form duration matrix.'''
 
-        self.duration_matrix = delete(self.duration_matrix, order.delivery_index + 1, axis=0) # +1 as the depot has index 0
-        self.duration_matrix = delete(self.duration_matrix, order.delivery_index + 1, axis=1) # +1 as the depot has index 0
+        self.duration_matrix = delete(self.duration_matrix, order.delivery_index, axis=0) 
+        self.duration_matrix = delete(self.duration_matrix, order.delivery_index, axis=1)
 
     def modify_indexes(self, order_to_remove:Order) -> None:
 
         ''' Reduces order.delivery_index by 1 if for all orders.
             This method must be run when an order is removed from a delivery tour.'''
+
+        index = 0
 
         for index, order in enumerate(self.orders_to_deliver):
             index:int
@@ -142,12 +144,14 @@ class Delivery(Vehicle):
             index:int
             stop:int
 
-            if stop == order.delivery_index + 1: # + 1 because route stops are retrieved from volumes having depot at index position 0
+            if stop == order_to_remove.delivery_index: # + 1 because route stops are retrieved from volumes having depot at index position 0
                 break
+
+        del self.routes[stop]
         
-        if not (index == len(self.routes)  and  stop == order.delivery_index + 1):
+        if not (index == len(self.routes)  and  stop == order_to_remove.delivery_index):
             
-            for i in range(index, len(self.routes)):
+            for i in range(index, len(self.routes)-1):
                 i:int
 
                 self.routes[i] -= 1
@@ -161,7 +165,7 @@ class Delivery(Vehicle):
         self.delivery_volume.append(order.volume)
 
         # set a loading index to find order on all tours
-        order.delivery_index = len(self.orders_to_deliver) - 1
+        order.delivery_index = len(self.orders_to_deliver)
 
         # calculate durations to drive to all existing stops and to carry out loading and delivery operations 
         new_durations = self.calc_duration_to_other_stops(order.customer)
@@ -180,7 +184,7 @@ class Delivery(Vehicle):
         self.delivery_volume.remove(order.volume)
         self.remove_from_duration_matrix(order)
         self.remove_from_batches(order)
-        order.delivery_index = 0
+        order.delivery_index = None
 
     def position_with_nearest_neighbours(self, new_durations:array) -> int:
 
@@ -235,7 +239,7 @@ class Delivery(Vehicle):
 
         '''Returns the rounded duration of a delivery tour in minutes.'''
 
-        return int(round(sum(self.duration_matrix[route[r], route[r+1]] for r in range(len(route) - 1)), 0))
+        return int(round(sum(self.duration_matrix[route[r], route[r+1]] for r in range(len(route) - 1)), 0)) if len(route) > 2 else 0
 
     def get_orders_of_route(self, route:list) -> list:
 

@@ -12,7 +12,7 @@ from mysql.connector.errors import DatabaseError
 
 from database.connector import Database, NoDataError
 from database.constants import ID
-from database.views import Articles_Sold
+from database.views import Articles_Sold_Online, Articles_Sold_Offline
 from dstrbntw.errors import ImportModelDataError
 from utilities.general import create_obj_dict
 
@@ -52,17 +52,23 @@ class Articles:
 
     def imp(self, db:Database, start:date=None, end:date=None, region_id:int=None) -> None:
 
-        '''Fetches data from db about articles and stores them as article object in a dict 
+        ''' Fetches data from db about articles and stores them as article object in a dict 
             which is set as attribute of Articles with 
             the article.id as key and the article-object as value.'''
 
         try: 
-            data = Articles_Sold(db, columns="*", start=start, end=end, fc=region_id).data
+            data_online = Articles_Sold_Online(db, columns="*", start=start, end=end, fc=region_id).data #type: list
+            data_offline = Articles_Sold_Offline(db, columns="*", start=start, end=end, fc=region_id).data #type: list
 
-            if data == None:
-                raise NoDataError(Articles_Sold.__name__)
+            if data_offline == None and data_online == None:
+                raise NoDataError(Articles_Sold_Offline.__name__ + " or " + Articles_Sold_Online.__name__)
 
-            self.dict = create_obj_dict(data, Article, key=ID)
+            for line in data_online:
+                if not line in data_offline:
+                    data_offline.append(line)
+
+            # map articles
+            self.dict = create_obj_dict(data_offline, Article, key=ID)
 
         except NoDataError as err:
             raise ImportModelDataError("database", err_name=NoDataError.__name__, err=err)
