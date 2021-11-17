@@ -24,10 +24,10 @@ class Sale():
         # assign attributes
         self.id = data[0]
         node_id = data[1]
-        self.date_time = datetime.combine(data[2], datetime.min.time()) + data[3]
         self.price = float(data[4])
         # self.volume = float(data[5])
         # self.weight = float(data[6])
+        self.date_time = data[7]
 
         # adds the node where the sale took place based on the node_id imported
         self.node = nodes.__get__(id=node_id)

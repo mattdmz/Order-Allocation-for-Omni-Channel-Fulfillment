@@ -24,10 +24,10 @@ class Order():
             # assign attributes
             self.id = data[0]
             customer_id = data[1]
-            self.date_time = datetime.combine(data[2], datetime.min.time()) + data[3] #type: datetime
             self.price = float(data[4])
             self.volume = float(data[5])
             # self.weight = float(data[6])
+            self.date_time = data[7]
 
             # add customer with the customer_id imported
             self.customer = customers.__get__(customer_id)
