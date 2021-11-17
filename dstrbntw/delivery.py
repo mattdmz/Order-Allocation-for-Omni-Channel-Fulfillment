@@ -245,7 +245,7 @@ class Delivery(Vehicle):
 
         '''Returns a list of orders to deliver on route.'''
 
-        return list(self.orders_to_deliver[index - 1] for index in route[1:-1])
+        return list(self.orders_to_deliver[index] for index in route[1:-1])
 
     def delivery_end(self, batch_index:int, batches:list, current_time:datetime) -> time:
 
