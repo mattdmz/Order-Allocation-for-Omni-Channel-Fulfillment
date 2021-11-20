@@ -1,5 +1,5 @@
 #create table salelines (WITHOUT primary or secondary key)
-CREATE TABLE masterarbeit.salelines2(
+CREATE TABLE masterarbeit.salelines(
 	transaction_id BIGINT NOT NULL,
     node_id INT NOT NULL,
 	its_date date,
@@ -9,21 +9,21 @@ CREATE TABLE masterarbeit.salelines2(
     );
 
 LOAD DATA INFILE 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/salelines_up_to_20190316.csv'
-INTO TABLE masterarbeit.salelines2
+INTO TABLE masterarbeit.salelines
 	FIELDS TERMINATED BY ';'
            OPTIONALLY ENCLOSED BY '"'
 	LINES TERMINATED BY'\n'
     IGNORE 1 LINES;
     
 LOAD DATA INFILE 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/salelines_up_to_20190331.csv'
-INTO TABLE masterarbeit.salelines2
+INTO TABLE masterarbeit.salelines
 	FIELDS TERMINATED BY ';'
            OPTIONALLY ENCLOSED BY '"'
 	LINES TERMINATED BY'\n'
     IGNORE 1 LINES;
     
 #create table sales
-CREATE TABLE masterarbeit.sales2(
+CREATE TABLE masterarbeit.sales(
 	id BIGINT,
     node_id INT,
 	its_date date,
@@ -34,56 +34,56 @@ CREATE TABLE masterarbeit.sales2(
     );
 
 #insert new saleslines into table sales
-INSERT INTO masterarbeit.sales2
+INSERT INTO masterarbeit.sales
 SELECT sl.transaction_id as id, sl.node_id, sl.its_date, sl.its_time,
 		sum(a.price * sl.quantity) as price, sum(a.volume * sl.quantity) as volume, sum(a.weight * sl.quantity) as weight
-		FROM masterarbeit.salelines2 as sl, masterarbeit.articles as a
+		FROM masterarbeit.salelines as sl, masterarbeit.articles as a
 		WHERE sl.article_id = a.id
         AND sl.its_date <= "2019-03-10"
 		GROUP BY sl.transaction_id;
         
-INSERT INTO masterarbeit.sales2
+INSERT INTO masterarbeit.sales
 SELECT sl.transaction_id as id, sl.node_id, sl.its_date, sl.its_time,
 		sum(a.price * sl.quantity) as price, sum(a.volume * sl.quantity) as volume, sum(a.weight * sl.quantity) as weight
-		FROM masterarbeit.salelines2 as sl, masterarbeit.articles as a
+		FROM masterarbeit.salelines as sl, masterarbeit.articles as a
 		WHERE sl.article_id = a.id
         AND sl.its_date > "2019-03-10"
         AND sl.its_date <= "2019-03-20"
 		GROUP BY sl.transaction_id;
         
-INSERT INTO masterarbeit.sales2
+INSERT INTO masterarbeit.sales
 SELECT sl.transaction_id as id, sl.node_id, sl.its_date, sl.its_time,
 		sum(a.price * sl.quantity) as price, sum(a.volume * sl.quantity) as volume, sum(a.weight * sl.quantity) as weight
-		FROM masterarbeit.salelines2 as sl, masterarbeit.articles as a
+		FROM masterarbeit.salelines as sl, masterarbeit.articles as a
 		WHERE sl.article_id = a.id
         AND sl.its_date > "2019-03-20"
         AND sl.its_date <= "2019-03-31"
 		GROUP BY sl.transaction_id;
 
 #add primary keys to sales
-ALTER TABLE masterarbeit.sales2
+ALTER TABLE masterarbeit.sales
 	  ADD PRIMARY KEY (id);
 
 # drop unnecessary salelines
-DELETE FROM masterarbeit.salelines2 WHERE its_date > '2019-03-31';
+DELETE FROM masterarbeit.salelines WHERE its_date > '2019-03-31';
       
 #drop redundant columns in salelines
-ALTER TABLE masterarbeit.salelines2
+ALTER TABLE masterarbeit.salelines
       DROP COLUMN its_date;
-ALTER TABLE masterarbeit.salelines2
+ALTER TABLE masterarbeit.salelines
       DROP COLUMN its_time;
-ALTER TABLE masterarbeit.salelines2
+ALTER TABLE masterarbeit.salelines
 	  DROP COLUMN node_id;
       
 #add foreign keys to salelines
-ALTER TABLE masterarbeit.salelines2
-	  ADD FOREIGN KEY (transaction_id) REFERENCES sales2(id),
+ALTER TABLE masterarbeit.salelines
+	  ADD FOREIGN KEY (transaction_id) REFERENCES sales(id),
 	  ADD FOREIGN KEY (article_id) REFERENCES articles(id);
       
-ALTER TABLE masterarbeit.sales2
+ALTER TABLE masterarbeit.sales
 	ADD COLUMN its_datetime datetime;
     
-UPDATE masterarbeit.sales2
+UPDATE masterarbeit.sales
 	SET its_datetime = cast(its_date as datetime) + cast(its_time as time);
 
 
