@@ -8,18 +8,23 @@
 
 from copy import deepcopy
 from datetime import datetime
-from numpy import array, full, float32
+from math import  floor, sqrt
+from numpy import append, argsort, array, full, float32
+from scipy.stats import norm
 
 from allocation.constants import *
 from allocation.evaluation import Evaluation_Model
 from database.constants import NODE_TYPE
 from dstrbntw.constants import ACCEPTING_ORDERS
-from dstrbntw.region import Region
 from dstrbntw.delivery import Delivery
+from dstrbntw.region import Node
+from dstrbntw.region import Region
+from parameters import ALLOC_START_TIME, ALLOC_OPERATOR, END_OF_TOURS, MAX_PAL_VOLUME, OP_CAPACITY, OP_END_TIME, RPL_CYCLE_DURATION
 from protocols.constants import ALLOC_ARR, ALLOCATION_DATETIME, BEST_OBJ_VALUE, ITER, NUMBER_OF_ORDERS, REGION_ID, RETRY, SAMEDAY_DELIVERY
 from transactions.orders import Order
 from transactions.sales import Sale
-from parameters import END_OF_TOURS, OP_CAPACITY, OP_END_TIME
+from utilities.datetime import time_diff
+
 
 class Allocator:
 
@@ -88,8 +93,19 @@ class Allocator:
 
         # check availablity of delivery capacities. Copy current tour and prototype routes after having added the new order.
         delivery = self.nodes.__getattr__(DELIVERY, index=node_index) #type: Delivery
-        prototype_delivery = deepcopy(delivery)
-        prototype_delivery.add_order(order)
+
+        #check if order is already allocated at node
+        if order in delivery.orders_to_deliver:
+            # order is already in delivery tour, optimize tour only
+            prototype_delivery = delivery
+        
+        else:
+
+            # create copy and create test tour and add order to it
+            prototype_delivery = deepcopy(delivery) # type: Delivery
+            prototype_delivery.add_order(order)
+
+        # optimize routes
         prototype_delivery.build_routes()
 
         # check if prototype tour end before end of tours
@@ -204,12 +220,6 @@ class Allocator:
 
         # reduce available stock
         self.reserve_stock(order, node_index)
-
-        # add order to delivery tour
-        if self.__type__ == OPTIMIZER:
-            
-            # add order to delivery tour
-            order.allocated_node.delivery.add_order(order)
         
         # creae batches if there is more than 1 order to deliver
         if len(order.allocated_node.delivery.orders_to_deliver) >= 1:
@@ -221,17 +231,25 @@ class Allocator:
 
         '''Dellocates order from node.'''
 
+        order.allocated_node.delivery.remove_order(order)
+
+       # rebuild delivery routes if there is orders remaining to deliver
+        if len(order.allocated_node.delivery.orders_to_deliver) > 0:
+        
+            # reschedule delivery to get the correct delivery times of the new route 
+            # without the order that could not be processed
+            order.allocated_node.delivery.build_routes()
+            order.allocated_node.delivery.create_batches(self.current_time)
+            
+        else:
+            # reset delivery if there is no order left to deliver 
+            order.allocated_node.reset_delivery()
+        
         order.allocated_node = None
         order.allocation_time = None
 
         # reduce available stock
         self.cancel_stock_reservation(order, node_index)
-
-        # reduce available delivery tour capacity and reschedule delivery batches
-        delivery = self.nodes.__getattr__(DELIVERY, index=node_index) #type: Delivery
-        
-        # remove order from delivery
-        delivery.remove_order(order)
 
     def prepare_evaluation(self) -> None:
 
@@ -262,6 +280,126 @@ class Allocator:
         '''Stores an allocation in the best allocation list'''
 
         self.allocation = evaluated_allocation
+
+    # _______________ Support Methods __________________________________________________________________
+
+    def days_since_last_replenishment(self, node_type:int) -> float:
+        
+        ''' Support method for Dynamic1.
+            Returns the number in days since the last replenishment as floating point value.'''
+        
+        shops_open = datetime.combine(self.current_time.date(), ALLOC_START_TIME)
+        full_days_since_replenishment = self.current_time.date().isoweekday() % RPL_CYCLE_DURATION
+        open_minutes_current_day = time_diff(shops_open, self.current_time) 
+        shops_close = datetime.combine(self.current_time.date(), OP_END_TIME[node_type])
+
+        return full_days_since_replenishment + (open_minutes_current_day / time_diff(shops_open, shops_close))
+
+    def days_until_next_replenishment(self, node_type:int) -> float:
+        
+        ''' Support method for Dynamic1.
+            Returns the remaining number in days until the next replenishment as floating point value.'''
+        
+        shops_open = datetime.combine(self.current_time.date(), ALLOC_START_TIME)
+        shops_close = datetime.combine(self.current_time.date(), OP_END_TIME[node_type])
+        full_days_until_replenishment = self.current_time.date().isoweekday() % RPL_CYCLE_DURATION
+        left_minutes_open_current_day = time_diff(shops_close, self.current_time) 
+
+        return full_days_until_replenishment + (left_minutes_open_current_day / time_diff(shops_open, shops_close))
+
+    def expected_stock_level_at_end_of_rpm_cyle(self, article_index:int, node_index:int, days_since_rplm:float) -> int:
+
+        ''' Support method for Dynamic1.
+            Returns the expected stock level for a certain article at the end 
+            of the replenishment cycle == before replenishment.'''
+
+        return     (self.stock.current_level[article_index, node_index] \
+                -  self.stock.reserved[article_index, node_index]) \
+                -  RPL_CYCLE_DURATION * self.demand.__getattr__("avg", article_index, node_index) * (floor(days_since_rplm) - days_since_rplm + 1) \
+                / sqrt(self.demand.__getattr__("var", article_index, node_index) * (floor(days_since_rplm) - days_since_rplm + 1))  
+
+    def reduction_in_stock_holding_costs(self, node:Node, current_stock_level:int, stock_level_at_end_of_rpm_cyle, days_until_next_rplm:float) -> int:
+
+        ''' Support method for Dynamic1.
+            Returns the reduction of the stock holding costs resulting from the evaluated allocation.'''
+
+        return (current_stock_level - stock_level_at_end_of_rpm_cyle) * days_until_next_rplm * node.stock_holding_rate
+    
+    def delivery_costs(self, order:Order, node:Node) -> float:
+
+        '''Returns the delivery costs if the order is allocated at the examined node.'''
+
+        prototype_delivery = deepcopy(node.delivery) #type:Delivery
+        prototype_delivery.add_order(order)
+        prototype_delivery.build_routes()
+        
+        return  (prototype_delivery.tot_duration * node.route_rate) \
+              + (node.tour_rate if len(node.delivery.batches) == 0 else 0)
+
+    def delivery_costs_of_detour(self, order:Order, node:Node) -> float:
+
+        '''Returns the delivery costs of detour if the order is allocated at the examined node.'''
+
+        prototype_delivery = deepcopy(node.delivery) #type:Delivery
+        prototype_delivery.add_order(order)
+        prototype_delivery.build_routes()
+        
+        return  (prototype_delivery.tot_duration * node.route_rate) \
+              - (node.delivery.tot_duration * node.route_rate) \
+              + (node.tour_rate if len(node.delivery.batches) == 0 else 0)
+
+    def order_processing_costs(self, order:Order, node:Node) -> float:
+
+        ''' Support method for Modified_Dynamic_1.
+            Retunrs the expected  order_processing_costs of processing order at node.'''
+
+        return order.number_of_lines * node.order_processing_rate
+
+    def supply_costs(self, order:Order, node:Node) -> float:
+
+        ''' Support method for Modified_Dynamic_1.
+            Retunrs the expected supply of processing allocating order at node.'''
+
+        return (order.volume / MAX_PAL_VOLUME) * node.supply_rate
+
+    def marginal_costs(self, order:Order, node:Node):
+        
+        ''' Support method for Dynamic1.
+            Returns marginal holding and backorder costs of maintaining 
+            one additional unit of article article_index at node node_index.'''
+
+        marg_holding_and_backorder_costs = []
+        days_since_rplm = self.days_since_last_replenishment(node.node_type)
+
+        for line in order.lines:
+            line:Order.Line
+
+            # calculate cumulative distribution function for the expected stock at the end of the replenishment cycle
+            cdf = norm.cdf(self.expected_stock_level_at_end_of_rpm_cyle(line.article.index, node.index, days_since_rplm))
+
+            # calculate and append marginal costs
+            marg_holding_and_backorder_costs.append(node.stock_holding_rate * cdf - node.supply_rate * (1 - cdf))
+
+        return ALLOC_OPERATOR(marg_holding_and_backorder_costs) + self.order_processing_costs(order, node) + self.delivery_costs_of_detour(order, node)
+
+    def expected_costs(self, order:Order, node:Node):
+        
+        ''' Support method for Modified_Dynamic_1.
+            Returns marginal holding and backorder costs of maintaining 
+            one additional unit of article article_index at node node_index.'''
+
+        reduction_in_stock_holding_costs = []
+        days_until_rplm = self.days_until_next_replenishment(node.node_type)
+
+        for line in order.lines:
+            line:Order.Line
+
+            expected_stock_level_at_rplm_time = self.expected_stock_level_at_end_of_rpm_cyle(line.article.index, node.index, days_until_rplm)
+            current_stock_level = self.stock.current_level[line.article.index, node.index]
+            reduction_in_stock_holding_costs.append(self.reduction_in_stock_holding_costs(node, current_stock_level, expected_stock_level_at_rplm_time, days_until_rplm))
+
+        return    self.supply_costs(order, node) + sum(reduction_in_stock_holding_costs) \
+                + self.order_processing_costs(order, node) + self.delivery_costs(order, node)
 
 
 

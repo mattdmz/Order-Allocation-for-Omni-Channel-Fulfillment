@@ -68,29 +68,35 @@ class Optimizer(Allocator):
         for index, order in enumerate(self.orders.list):
             order:Order
 
-            # shuffle candidates
-            candiates = self.candidates(order)
-            np_random.shuffle(candiates)
+            if order.allocated_node is None:
 
-            # allocate to first allocatable node_index
-            for node in candiates:
-                node:Node
+                # shuffle candidates
+                candiates = self.candidates(order)
+                np_random.shuffle(candiates)
 
-                feedback = self.allocatable(order, node.index)
+                # allocate to first allocatable node_index
+                for node in candiates:
+                    node:Node
 
-                if feedback > 0:
+                    feedback = self.allocatable(order, node.index)
 
-                    # allocate to candidate (node_index)
-                    self.allocate(order, node.index)
-                    break
+                    if feedback > 0:
+
+                        # allocate to candidate (node_index)
+                        self.allocate(order, node.index)
+                        break
+                
+                    elif feedback > seed[index]:
+
+                        # store current best feedback
+                        seed[index] = feedback
+                
+                # set node_index in seed array (may be negative integer, invalid allocation)
+                seed[index] = feedback
             
-                elif feedback > seed[index]:
-
-                    # store current best feedback
-                    seed[index] = feedback
-            
-            # set node_index in seed array (may be negative integer, invalid allocation)
-            seed[index] = feedback
+            else:
+                # use current allocation
+                seed[index] = order.allocated_node.index
             
         return seed
 
@@ -101,13 +107,26 @@ class Optimizer(Allocator):
             A positive return value means the allocation costs descreased and viceversa.'''
 
         # get objects
-        order = self.orders.__get__(order_index) # type: Order
+        order = self.orders.list[order_index] # type: Order
         neighbour = self.nodes.__get__(index=neighbour_index) # type: Node
 
-        # build a protype_tour to approximate route duration
-        prototype_delivery = deepcopy(neighbour.delivery) # type: Delivery
-        new_durations = prototype_delivery.add_order(order)
-        prototype_delivery.approximate_routes(new_durations)
+        #check if order is already allocated at node
+        if order in neighbour.delivery.orders_to_deliver:
+            # order is already in delivery tour, optimize tour only
+            prototype_delivery = neighbour.delivery
+        else:
+            # create copy and create test tour and add order to it
+            prototype_delivery = deepcopy(neighbour.delivery) # type: Delivery
+            prototype_delivery.add_order(order)
+
+        # optimize routes
+        prototype_delivery.build_routes(max_iterations_ls=0)
+
+        # print("building route for node_id ", prototype_delivery.depot_location.id, order)
+        # prototype_delivery.build_routes(max_iterations_ls=40)
+        # print("40 iters: ", prototype_delivery.tot_duration)
+        # prototype_delivery.build_routes(max_iterations_ls=10)
+        # print("10 iters: ", prototype_delivery.tot_duration)
 
         if prototype_delivery.on_time(self.current_time): 
 
@@ -152,19 +171,13 @@ class Optimizer(Allocator):
             order_index:int
             neighbour:Node
 
-            # check if stock is available:
-            if neighbour.delivery.on_time(self.current_time):
+            if self.stock_available(self.orders.list[order_index], neighbour.index):
+        
+                # evaluate fitness
+                fitness.append(self.calc_fitness(order_index, neighbour.index, best_allocation[order_index]))
 
-                if self.stock_available(self.orders.list[order_index], neighbour.index):
-            
-                    # evaluate fitness
-                    fitness.append(self.calc_fitness(order_index, neighbour.index, best_allocation[order_index]))
-
-                else:
-                    # stock not available
-                    fitness.append(-Infinity)
             else:
-                # node not available
+                # stock not available
                 fitness.append(-Infinity)
 
         # create arrays
@@ -182,23 +195,21 @@ class Optimizer(Allocator):
             is a valid allocation for the order.'''
             
         # get order
-        order = self.orders.__get__(order_index) #type: Order
-        
-        if self.stock_available(order, node_index):
+        order = self.orders.list[order_index] #type: Order
 
-            # check order deliverability (vehicle volume restrictions, scheduling of order proc and delivery restrictions)
-            delivery = self.order_deliverable(order, node_index)
+        # check order deliverability (vehicle volume restrictions, scheduling of order proc and delivery restrictions)
+        delivery = self.order_deliverable(order, node_index)
 
-            if delivery is not None:
-                
-                # replace tour
-                setattr(self.nodes.__get__(index=node_index), DELIVERY, delivery)
+        if delivery is not None:
             
-                return True 
+            # replace tour
+            setattr(self.nodes.__get__(index=node_index), DELIVERY, delivery)
+        
+            return True 
         
         return False
 
-    def nearest_nodes_candidates_generator(self, candidates:array, order:Order) -> array:
+    def nearest_nodes_candidates_generator(self, order:Order, candidates:array) -> array:
 
         ''' Returns an numpy array with all node indexes 
             in ascending order based on the distance to the order's delivery location.'''
@@ -217,10 +228,25 @@ class Optimizer(Allocator):
         
         return indexes[distances.argsort()]
 
-    class Neighbourhood_Generator: 
+    def cheapest_delivery_candiates_generator(self, order:Order, candidates:array) -> array:
 
-        def __init__(self) -> None:
-            pass
+        ''' Returns an numpy array with all node indexes
+            in ascending order based on expected delivery costs of allocating 
+            the order at the node.'''
+
+        indexes = zeros(shape=(len(self.nodes.dict)), dtype=int)
+        expected_costs = zeros(shape=(len(self.nodes.dict)), dtype=float64)
+
+        for i, node in enumerate(candidates):
+            i:int
+            node:Node
+            
+            indexes[i] = node.index
+            expected_costs[i] = self.delivery_costs_of_detour(order, node)
+        
+        return indexes[expected_costs.argsort()]
+
+    class Neighbourhood_Generator: 
 
         def random(candidates:list, size:int) -> list:
 
