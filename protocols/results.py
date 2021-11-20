@@ -295,7 +295,7 @@ class Result_Protocols:
         ''' Exports daily results of region to created file.
             Resets counter.'''
 
-        write_df(DataFrame.from_dict([evaluate_results(self.daily_results[region_id], True, self.allocation_method, current_time.date().strftime("%m%d"))]), \
+        write_df(DataFrame.from_dict([evaluate_results(self.daily_results[region_id], True, self.allocation_method, current_time.date().strftime("%mm%d"))]), \
                                         self.run_id + DAILY_RESULTS_FILE_NAME, dir_path=self.output_dir_path, mode="a")
 
     def export_overall_results(self, start:date, end:date) -> None:
