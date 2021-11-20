@@ -90,7 +90,7 @@ class Delivery(Vehicle):
             for the handover of the order.'''
 
         # calculates stop to distance matrix
-        new_distances = zeros(len(self.orders_to_deliver))
+        new_distances = zeros(self.duration_matrix.shape[0])
 
         # calcualte distance to depot
         new_distances[0] = distance(self.depot_location, customer.location)
@@ -114,58 +114,58 @@ class Delivery(Vehicle):
             self.duration_matrix = concatenate((self.duration_matrix, new_durations[:,None]), axis=1)
             self.duration_matrix = concatenate((self.duration_matrix, append(new_durations, 0)[None,:]), axis=0)
 
-    def remove_from_duration_matrix(self, order:Order) -> None:
+    def remove_from_duration_matrix(self, delivery_index_from_order_to_remove:int) -> None:
 
         '''Removes location form duration matrix.'''
 
-        self.duration_matrix = delete(self.duration_matrix, order.delivery_index, axis=0) 
-        self.duration_matrix = delete(self.duration_matrix, order.delivery_index, axis=1)
+        self.duration_matrix = delete(self.duration_matrix, delivery_index_from_order_to_remove, axis=0) 
+        self.duration_matrix = delete(self.duration_matrix, delivery_index_from_order_to_remove, axis=1)
 
-    def modify_indexes(self, order_to_remove:Order) -> None:
+        if len(self.duration_matrix) == 1:
+            self.duration_matrix = array([0.0], dtype=float32)
 
-        ''' Reduces order.delivery_index by 1 if for all orders.
+    def modify_indexes(self) -> int:
+
+        ''' Modifies the indexes of the orders to deliver and from the delviery route.
+            Removes order form delivery route.
             This method must be run when an order is removed from a delivery tour.'''
 
-        index = 0
+        if len(self.orders_to_deliver) > 0:
 
-        for index, order in enumerate(self.orders_to_deliver):
-            index:int
-            order:Order
-            
-            if order.delivery_index > order_to_remove.delivery_index:
-                break
+            # get index of order to remove
+            delivery_indexes = [delivery_index for delivery_index in self.routes[1:-1]]
+            indexes_of_orders_to_deliver = [order.delivery_index for order in self.orders_to_deliver]
 
-        for i in range(index, len(self.orders_to_deliver)):
-            i:int
-            
-            self.orders_to_deliver[i].delivery_index -= 1
+            for delivery_index in delivery_indexes:
+                delivery_index:int
                 
-        for index, stop in enumerate(self.routes):
-            index:int
-            stop:int
+                if delivery_index not in indexes_of_orders_to_deliver:
+                    delivery_index_of_order_to_remove = delivery_index
+                    break
 
-            if stop == order_to_remove.delivery_index: # + 1 because route stops are retrieved from volumes having depot at index position 0
-                break
+                    
+            # reducs delivery index for all orders with delivery index higher than order_to_remove.delivery_index
+            for order in self.orders_to_deliver:
+                order:Order
+                
+                if order.delivery_index > delivery_index_of_order_to_remove:
+                    order.delivery_index -= 1
 
-        del self.routes[stop]
+            # remove from tour
+            self.routes.remove(delivery_index_of_order_to_remove)
         
-        if not (index == len(self.routes)  and  stop == order_to_remove.delivery_index):
-            
-            for i in range(index, len(self.routes)-1):
-                i:int
+        else:
+            return self.routes.pop(1) if len(self.duration_matrix) > 1 else None
 
-                self.routes[i] -= 1
+        return delivery_index_of_order_to_remove
 
     def add_order(self, order:Order) -> array:
 
         '''Adds order to delivery tour.'''
-
+            
         # add a new stop to the delivery tour
         self.orders_to_deliver.append(order)
         self.delivery_volume.append(order.volume)
-
-        # set a loading index to find order on all tours
-        order.delivery_index = len(self.orders_to_deliver)
 
         # calculate durations to drive to all existing stops and to carry out loading and delivery operations 
         new_durations = self.calc_duration_to_other_stops(order.customer)
@@ -173,18 +173,24 @@ class Delivery(Vehicle):
         # add stop to distance matrix
         self.add_to_duration_matrix(new_durations)
 
+        # set a loading index to find order on all tours
+        order.delivery_index = len(self.orders_to_deliver)
+
         return new_durations
 
     def remove_order(self, order:Order) -> None:
 
         '''Removes order from delivery delivery tour.'''
-        
-        self.modify_indexes(order)
-        self.orders_to_deliver.remove(order)
-        self.delivery_volume.remove(order.volume)
-        self.remove_from_duration_matrix(order)
-        self.remove_from_batches(order)
-        order.delivery_index = None
+
+        if order in self.orders_to_deliver:
+            self.orders_to_deliver.remove(order)
+            self.delivery_volume.remove(order.volume)
+
+        delivery_index_of_order_to_remove = self.modify_indexes()
+
+        if delivery_index_of_order_to_remove is not None:
+            self.remove_from_duration_matrix(delivery_index_of_order_to_remove)
+            self.remove_from_batches(order)
 
     def position_with_nearest_neighbours(self, new_durations:array) -> int:
 

@@ -323,6 +323,36 @@ class Region:
 
         return nodes_with_batches_to_process if nodes_with_batches_to_process != [] else None
 
+    def cancel_processing(self, order:Order, current_time:datetime) -> None:
+
+        ''' Cancels the prrocessing and delivery of an order 
+            if there is not wnough stock left at the moment of processing.'''
+
+        # remove order from deliver tour
+        order.allocated_node.delivery.remove_order(order)
+
+        # rebuild delivery routes if there is orders remaining to deliver
+        if len(order.allocated_node.delivery.orders_to_deliver) > 0:
+        
+            # reschedule delivery to get the correct delivery times of the new route 
+            # without the order that could not be processed
+            order.allocated_node.delivery.build_routes()
+            order.allocated_node.delivery.create_batches(current_time)
+            
+        else:
+            # reset delivery if there is no order left to deliver 
+            order.allocated_node.reset_delivery()
+
+        # reduce available stock
+        for line in order.lines:
+            line:Order.Line
+            
+            self.stock.cancel_reservation(line.article.index, order.allocated_node.index, line.quantity)
+        
+        # whipe allocation protocol
+        order.allocated_node = None
+        order.allocation_time = None
+
     def check_processability(self, nodes_with_batches_to_process:list, current_time:datetime) -> None:
 
         ''' Stores True or False as order attribute if order is processable or not. 
@@ -356,23 +386,7 @@ class Region:
         for order in not_processable_orders:
 
             # Order remains in the list of orders to be allocated and is allocated at a different node during the next allocation cycle.
-
-            # remove order from delivery tour
-            order.allocated_node.delivery.remove_order(order)
-
-            # rebuild delivery routes if there is orders remaining to deliver
-            if len(order.allocated_node.delivery.orders_to_deliver) > 1:
-
-                # reschedule delivery to get the correct delivery times of the new route without the order that could not be processed
-                order.allocated_node.delivery.create_batches(current_time)
-
-            else:
-                #reset delivery
-                order.allocated_node.reset_delivery()
-
-            # reset allocation
-            order.allocated_node = None
-            order.allocation_time = None
+            self.cancel_processing(order, current_time)
 
     def process_orders(self, nodes_with_batches_to_process:list, current_time:datetime) -> DataFrame:
 
