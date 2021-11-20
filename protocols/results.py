@@ -9,6 +9,7 @@ from datetime import datetime, date
 from pandas.core.frame import DataFrame
 from typing import Union
 
+from allocation.constants import DELIVERY_NOT_EXECUTABLE, STOCK_NOT_AVAILABLE
 from dstrbntw.constants import FULFILLMENT_CENTER, REGULAR_STORE, SMALL_STORE
 from protocols.constants import *
 from utilities.expdata import create_dir, write_results, write_df, get_parms, write_dict
@@ -208,8 +209,8 @@ class Result_Protocols:
             self.daily_results[region_id][FC_ALLOCATION] +=   count_occurrences(orders_evaluation, NODE_TYPE, FULFILLMENT_CENTER)
             self.daily_results[region_id][REGULAR_STORE_ALLOCATION] +=   count_occurrences(orders_evaluation, NODE_TYPE, REGULAR_STORE)
             self.daily_results[region_id][SMALL_STORE_ALLOCATION] +=  count_occurrences(orders_evaluation, NODE_TYPE, SMALL_STORE)
-            self.daily_results[region_id][MISSING_STOCK] +=  count_occurrences(orders_evaluation, ALLOCATED_NODE_ID, -10)
-            self.daily_results[region_id][DELIVERY_UNEXECUTABLE] +=  count_occurrences(orders_evaluation, ALLOCATED_NODE_ID, -1)
+            self.daily_results[region_id][MISSING_STOCK] +=  count_occurrences(orders_evaluation, ALLOCATED_NODE_ID, STOCK_NOT_AVAILABLE)
+            self.daily_results[region_id][DELIVERY_UNEXECUTABLE] +=  count_occurrences(orders_evaluation, ALLOCATED_NODE_ID, DELIVERY_NOT_EXECUTABLE)
 
             keys = [DELIVERED_ORDERS, ONLINE_REVENUE, DIMINUISHED_STOCK_VALUE, SUPPLY_COSTS, ORDER_PROCESSING_COSTS, 
                     DELIVERY_COSTS, RETRY, SAMEDAY_DELIVERY, DISTANCE, DELIVERY_DURATION]

@@ -80,7 +80,7 @@ class Rule(Allocator):
         best_feedback = -1000
 
         # determine candidate nodes for allocating the order
-        candidates = self.candidates(order)
+        candidates = self.determine_candidates(order)
 
         # get a ranking of node indexes based on the ALLOC_METHOD and ALLOC_FUNC defined in the parameters.
         ranked_nodes = self.main(order, candidates)
