@@ -93,17 +93,6 @@ class Cheapest_Delivery(Rule):
         
         super().__init__(region, current_time, self.main)
 
-    def delivery_costs(self, order:Order, node:Node) -> float:
-
-        '''Returns the delivery costs if the order is allocated at the examined node.'''
-
-        prototype_delivery = deepcopy(node.delivery) #type:Delivery
-        prototype_delivery.add_order(order)
-        prototype_delivery.build_routes()
-        return  (prototype_delivery.tot_duration * node.route_rate) \
-              - (node.delivery.tot_duration * node.route_rate) \
-              + (node.tour_rate if len(node.delivery.batches) == 0 else 0)
-
     def main(self, order:Order, candidates:list) -> array:
 
         ''' Returns an numpy array with all node indexes
@@ -118,7 +107,7 @@ class Cheapest_Delivery(Rule):
             node:Node
             
             indexes[i] = node.index
-            expected_costs[i] = self.delivery_costs(order, node)
+            expected_costs[i] = self.delivery_costs_of_detour(order, node)
         
         return indexes[expected_costs.argsort()]
 
