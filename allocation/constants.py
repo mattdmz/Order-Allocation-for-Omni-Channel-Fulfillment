@@ -11,7 +11,7 @@
 
 NO_NODES_AVAILABLE = -100
 STOCK_NOT_AVAILABLE = -10
-DELIVERY_NOT_EXECUTABLE = -10
+DELIVERY_NOT_EXECUTABLE = -1
 ALLOCATABLE = 1
 
 # ____________________________________________________________________________________________
