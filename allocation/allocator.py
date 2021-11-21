@@ -53,7 +53,7 @@ class Allocator:
 
         ''' Returns an np_array with the length of the number of orders to allocate.'''
 
-        return full(len(self.orders.list), -10, dtype=int)
+        return full(len(self.orders.list), STOCK_NOT_AVAILABLE, dtype=int)
 
     def update_allocation_based_rates(self, allocation:array, rate_type:str) -> array:
 
@@ -117,9 +117,9 @@ class Allocator:
         else:
             return None
 
-    def candidates(self, order:Order) -> list:
+    def determine_candidates(self, order:Order) -> list:
 
-        ''' Returns a list of candidate node sfor a certain order 
+        ''' Returns a list of candidate nodes for a certain order 
             based on if the node is available and it holds the required stock.'''
 
         candidates = []
@@ -131,7 +131,7 @@ class Allocator:
                 candidates.append(node)
 
         return candidates
-    
+
     def reserve_stock(self, order:Order, node_index:int):
 
         '''Reserves the amount of stock demanded in order.'''
@@ -197,18 +197,18 @@ class Allocator:
                     # replace delivery
                     setattr(self.nodes.__get__(index=node_index), DELIVERY, delivery)
                 
-                    return 1 
+                    return ALLOCATABLE
                 else:
                     # delivery restrictions not met
-                    return -1
+                    return DELIVERY_NOT_EXECUTABLE
 
             else:
                 # stock not available
-                return -10
+                return STOCK_NOT_AVAILABLE
 
         else:
             # node not available
-            return -100
+            return NO_NODES_AVAILABLE
             
     def allocate(self, order:Order, node_index:int) -> None:
 
@@ -232,8 +232,8 @@ class Allocator:
         '''Dellocates order from node.'''
 
         order.allocated_node.delivery.remove_order(order)
-
-       # rebuild delivery routes if there is orders remaining to deliver
+            
+        # rebuild delivery routes if there is orders remaining to deliver
         if len(order.allocated_node.delivery.orders_to_deliver) > 0:
         
             # reschedule delivery to get the correct delivery times of the new route 
@@ -334,7 +334,7 @@ class Allocator:
         prototype_delivery.build_routes()
         
         return  (prototype_delivery.tot_duration * node.route_rate) \
-              + (node.tour_rate if len(node.delivery.batches) == 0 else 0)
+              + (node.tour_rate if len(node.delivery.orders_to_deliver) == 0 else 0)
 
     def delivery_costs_of_detour(self, order:Order, node:Node) -> float:
 
@@ -346,7 +346,7 @@ class Allocator:
         
         return  (prototype_delivery.tot_duration * node.route_rate) \
               - (node.delivery.tot_duration * node.route_rate) \
-              + (node.tour_rate if len(node.delivery.batches) == 0 else 0)
+              + (node.tour_rate if len(node.delivery.orders_to_deliver) == 0 else 0)
 
     def order_processing_costs(self, order:Order, node:Node) -> float:
 
