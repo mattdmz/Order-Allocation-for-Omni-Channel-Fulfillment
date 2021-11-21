@@ -1,3 +1,38 @@
+
+#create table sales
+CREATE TABLE masterarbeit.sales(
+	id BIGINT NOT NULL,
+	node_id INT NOT NULL,
+	sales_date DATE,
+	sale_time TIME,
+	number_of_salelines SMALLINT NOT NULL,
+	price_str VARCHAR(7),
+	volume INT NOT NULL,
+	weight INT NOT NULL,
+    PRIMARY KEY (id),
+	its_datetime datetime,
+    FOREIGN KEY (node_id) REFERENCES nodes(id)
+);
+
+LOAD DATA INFILE 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/sales.csv'
+INTO TABLE masterarbeit.sales
+	FIELDS TERMINATED BY ';'
+           OPTIONALLY ENCLOSED BY '"'
+	LINES TERMINATED BY'\n'
+	IGNORE 1 ROWS;
+
+#add column
+ALTER TABLE masterarbeit.sales
+	ADD COLUMN price DECIMAL(7,2) AFTER price_str;
+
+#convert string values to float values in new columns    
+UPDATE masterarbeit.sales
+	SET price = REPLACE(price_str, ",", ".") + 0.0;
+
+#drop string columns
+ALTER TABLE masterarbeit.sales 
+	DROP COLUMN price_str;
+
 #create table salelines (WITHOUT primary or secondary key)
 CREATE TABLE masterarbeit.salelines(
 	transaction_id BIGINT NOT NULL,
@@ -7,6 +42,11 @@ CREATE TABLE masterarbeit.salelines(
     article_id INT NOT NULL,
     quantity SMALLINT NOT NULL
     );
+    
+#add foreign keys to salelines
+ALTER TABLE masterarbeit.salelines
+	  ADD FOREIGN KEY (transaction_id) REFERENCES sales(id),
+	  ADD FOREIGN KEY (article_id) REFERENCES articles(id);
 
 LOAD DATA INFILE 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/salelines_up_to_20190316.csv'
 INTO TABLE masterarbeit.salelines
@@ -22,51 +62,6 @@ INTO TABLE masterarbeit.salelines
 	LINES TERMINATED BY'\n'
     IGNORE 1 LINES;
     
-#create table sales
-CREATE TABLE masterarbeit.sales(
-	id BIGINT,
-    node_id INT,
-	its_date date,
-	its_time time,
-    price decimal(34,2),
-    volume decimal(37,0),
-    weight decimal(37,0)
-    );
-
-#insert new saleslines into table sales
-INSERT INTO masterarbeit.sales
-SELECT sl.transaction_id as id, sl.node_id, sl.its_date, sl.its_time,
-		sum(a.price * sl.quantity) as price, sum(a.volume * sl.quantity) as volume, sum(a.weight * sl.quantity) as weight
-		FROM masterarbeit.salelines as sl, masterarbeit.articles as a
-		WHERE sl.article_id = a.id
-        AND sl.its_date <= "2019-03-10"
-		GROUP BY sl.transaction_id;
-        
-INSERT INTO masterarbeit.sales
-SELECT sl.transaction_id as id, sl.node_id, sl.its_date, sl.its_time,
-		sum(a.price * sl.quantity) as price, sum(a.volume * sl.quantity) as volume, sum(a.weight * sl.quantity) as weight
-		FROM masterarbeit.salelines as sl, masterarbeit.articles as a
-		WHERE sl.article_id = a.id
-        AND sl.its_date > "2019-03-10"
-        AND sl.its_date <= "2019-03-20"
-		GROUP BY sl.transaction_id;
-        
-INSERT INTO masterarbeit.sales
-SELECT sl.transaction_id as id, sl.node_id, sl.its_date, sl.its_time,
-		sum(a.price * sl.quantity) as price, sum(a.volume * sl.quantity) as volume, sum(a.weight * sl.quantity) as weight
-		FROM masterarbeit.salelines as sl, masterarbeit.articles as a
-		WHERE sl.article_id = a.id
-        AND sl.its_date > "2019-03-20"
-        AND sl.its_date <= "2019-03-31"
-		GROUP BY sl.transaction_id;
-
-#add primary keys to sales
-ALTER TABLE masterarbeit.sales
-	  ADD PRIMARY KEY (id);
-
-# drop unnecessary salelines
-DELETE FROM masterarbeit.salelines WHERE its_date > '2019-03-31';
-      
 #drop redundant columns in salelines
 ALTER TABLE masterarbeit.salelines
       DROP COLUMN its_date;
@@ -74,19 +69,3 @@ ALTER TABLE masterarbeit.salelines
       DROP COLUMN its_time;
 ALTER TABLE masterarbeit.salelines
 	  DROP COLUMN node_id;
-      
-#add foreign keys to salelines
-ALTER TABLE masterarbeit.salelines
-	  ADD FOREIGN KEY (transaction_id) REFERENCES sales(id),
-	  ADD FOREIGN KEY (article_id) REFERENCES articles(id);
-      
-ALTER TABLE masterarbeit.sales
-	ADD COLUMN its_datetime datetime;
-    
-UPDATE masterarbeit.sales
-	SET its_datetime = cast(its_date as datetime) + cast(its_time as time);
-
-
-    
-
-    
