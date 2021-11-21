@@ -32,8 +32,9 @@ class Order():
             # add customer with the customer_id imported
             self.customer = customers.__get__(customer_id)
 
-            #  init sales lines (to be added)
+            # set placeholders
             self.lines = []
+            self.pieces = None
 
             # set placeholders
             self.processable = None
@@ -51,13 +52,6 @@ class Order():
             '''Returns number of lines of an order.'''
 
             return len(self.lines)
-
-        @property
-        def pieces(self) -> int:
-
-            '''Returns the sum of pieces ordered.'''
-
-            return sum(line.quantity for line in self.lines)
 
         @property
         def supply_costs(self) -> float:

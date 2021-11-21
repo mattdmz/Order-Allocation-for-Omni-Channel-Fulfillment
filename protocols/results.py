@@ -10,6 +10,7 @@ from pandas.core.frame import DataFrame
 from typing import Union
 
 from allocation.constants import DELIVERY_NOT_EXECUTABLE, STOCK_NOT_AVAILABLE
+from configs import DATE_FORMAT
 from dstrbntw.constants import FULFILLMENT_CENTER, REGULAR_STORE, SMALL_STORE
 from protocols.constants import *
 from utilities.expdata import create_dir, write_results, write_df, get_parms, write_dict
@@ -296,7 +297,7 @@ class Result_Protocols:
         ''' Exports daily results of region to created file.
             Resets counter.'''
 
-        write_df(DataFrame.from_dict([evaluate_results(self.daily_results[region_id], True, self.allocation_method, current_time.date().strftime("%m-%d"))]), \
+        write_df(DataFrame.from_dict([evaluate_results(self.daily_results[region_id], True, self.allocation_method, current_time.date().strftime(DATE_FORMAT))]), \
                                         self.run_id + DAILY_RESULTS_FILE_NAME, dir_path=self.output_dir_path, mode="a")
 
     def export_overall_results(self, start:date, end:date) -> None:
@@ -304,7 +305,7 @@ class Result_Protocols:
         ''' Exports overall results of region to created file.
             Resets daily_counter.'''
 
-        proc_period = start.strftime("%Y-%m-%d") + "_" + end.strftime("%Y-%m-%d")
+        proc_period = start.strftime(DATE_FORMAT) + "_" + end.strftime(DATE_FORMAT)
 
         for region_id in self.overall_results.keys():
             region_id:int

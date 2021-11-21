@@ -177,6 +177,7 @@ class Region:
 
                     data = Lines_of_Transaction(db, columns="*", table=ORDERLINES, id=order.id).data
                     order.lines = create_obj_list(data, Order.Line, self.articles)
+                    order.pieces = sum(line.quantity for line in order.lines)
 
                     if order.lines == []:
                         raise ImportTransactionsError(ORDERLINES, start, end)

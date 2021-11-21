@@ -14,12 +14,12 @@ from pandas import concat, DataFrame, read_csv
 from shutil import copy, rmtree
 from time import sleep
 
-from configs import ENCODING, EXPERIMENT_DIR, FILE_TYPE, OUTPUT_DIR, SEP_FORMAT
-from protocols.constants import ALGORITHM_USED, DAILY_RESULTS_FILE_NAME, DAILY_SUMMARY, OVERALL_RESULTS_FILE_NAME, OVERALL_SUMMARY, PROC_DATETIME
+from configs import EXPERIMENT_DIR, FILE_TYPE, OUTPUT_DIR, SEP_FORMAT
+from protocols.constants import DAILY_RESULTS_FILE_NAME, DAILY_SUMMARY, EXPERIMENT_FILE_NAME, OVERALL_RESULTS_FILE_NAME, OVERALL_SUMMARY
 from protocols.results import init_results_evaluation
+from utilities.expdata import write_df
 
-
-def create_dirs(concatenated_dir:str, type_of_result:str):
+def create_dirs(experiment_dir:str, type_of_result:str):
 
     '''Creates helping subdirs for each day.'''
     
@@ -30,13 +30,13 @@ def create_dirs(concatenated_dir:str, type_of_result:str):
             #get last 9 characters, of the folder name (time of the test)
             file_time = d[-9:]
             #check if a directory for this time has been already created
-            path_already_created = path.exists(path.join(concatenated_dir, type_of_result + file_time))
+            path_already_created = path.exists(path.join(experiment_dir, type_of_result + file_time))
             
             if(path_already_created):
                 continue
             else:
             # Path
-                file_path = path.join(concatenated_dir, type_of_result + file_time)
+                file_path = path.join(experiment_dir, type_of_result + file_time)
                 mkdir(file_path)
                 #print("Directory "% s" created" % file_time)    	
 
@@ -67,57 +67,45 @@ def copy_from_to(from_dir:str, to_dir:str, base_dir:str, type_of_result:str):
 
 def concat_results():
 
-    '''Concatenates the daily and overall results of all experiments in one file.'''
+    ''' Concatenates the daily and overall results of all experiments 
+        inside the defualt OUTPUT_DIR in one file.'''
 
     # Define the directory where the files are and where they have to be concatenate
-    concatenated_dir = path.join(EXPERIMENT_DIR, "experiment_" + datetime.now().strftime("%Y%m%d_%H%M%S"))
+    experiment_name = EXPERIMENT_FILE_NAME + datetime.now().strftime("%Y%m%d_%H%M%S")
+    experiment_dir = path.join(EXPERIMENT_DIR, experiment_name)
 
     # First delete all file in concatenated_results to avoid old data
-    rmtree(concatenated_dir, ignore_errors=True)
+    rmtree(experiment_dir, ignore_errors=True)
     sleep(1)
 
     # create the concatenate dir
-    mkdir(concatenated_dir)
+    mkdir(experiment_dir)
 
     # create subdirs for each day
-    create_dirs(concatenated_dir, OVERALL_SUMMARY)
-    create_dirs(concatenated_dir, DAILY_SUMMARY)
+    create_dirs(experiment_dir, OVERALL_SUMMARY)
+    create_dirs(experiment_dir, DAILY_SUMMARY)
 
     # copy the day results to each day dir
-    for file in listdir(concatenated_dir):
-        d = path.join(concatenated_dir, file)
+    for file in listdir(experiment_dir):
+        d = path.join(experiment_dir, file)
         
         if path.isdir(d):
             if OVERALL_SUMMARY in d:
-                copy_from_to(OUTPUT_DIR, file, concatenated_dir, "*" + OVERALL_RESULTS_FILE_NAME + FILE_TYPE)
+                copy_from_to(OUTPUT_DIR, file, experiment_dir, "*" + OVERALL_RESULTS_FILE_NAME + FILE_TYPE)
             if DAILY_SUMMARY in d:
-                copy_from_to(OUTPUT_DIR, file, concatenated_dir, "*" + DAILY_RESULTS_FILE_NAME + FILE_TYPE)
+                copy_from_to(OUTPUT_DIR, file, experiment_dir, "*" + DAILY_RESULTS_FILE_NAME + FILE_TYPE)
 
     # create summary file
     overall_summary = DataFrame(columns=init_results_evaluation("").keys())
     daily_summary = DataFrame(columns=init_results_evaluation("").keys())
 
     # concatenate results per day
-    for file in listdir(concatenated_dir):
-        d = path.join(concatenated_dir, file)
+    for file in listdir(experiment_dir):
+        d = path.join(experiment_dir, file)
         
         if path.isdir(d):
             # add a column with the algorithm name to the file
             chdir(d)
-            
-            for csv_file in listdir(d):
-                df = read_csv(csv_file, delimiter=SEP_FORMAT)
-                
-                # insert algorithm name
-                algo_used = csv_file[:-14]
-                df.insert(0, ALGORITHM_USED, algo_used)
-
-                # insert processing_period
-                period = d[-9:]
-                df[PROC_DATETIME] = [period for row in df.index]
-                
-                # reexport data to csv
-                df.to_csv(csv_file, index=False, sep=SEP_FORMAT, encoding=ENCODING)
             
             # combine all files in the list
             all_file_names = [i for i in glob("*.{}".format(FILE_TYPE[1:]))]
@@ -130,14 +118,15 @@ def concat_results():
             daily_summary = daily_summary.append(concatenated_data, ignore_index=True)
 
     # export summary of days to csv
-    daily_summary.to_csv(DAILY_SUMMARY + FILE_TYPE, index=False, sep=SEP_FORMAT, encoding=ENCODING)
-    overall_summary.to_csv(OVERALL_SUMMARY + FILE_TYPE, index=False, sep=SEP_FORMAT, encoding=ENCODING)
-    chdir(concatenated_dir)
+    write_df(daily_summary, experiment_name + DAILY_SUMMARY, experiment_dir, header=True)
+    write_df(overall_summary, experiment_name+ OVERALL_SUMMARY, experiment_dir, header=True)
+
+    chdir(experiment_dir)
 
     # delete unnecessary directories
     # first delete all file in concatenated_results to avoid old data
-    for file in listdir(concatenated_dir):
-        d = path.join(concatenated_dir, file)
+    for file in listdir(experiment_dir):
+        d = path.join(experiment_dir, file)
         
         if path.isdir(d):
             rmtree(d, ignore_errors=True)
