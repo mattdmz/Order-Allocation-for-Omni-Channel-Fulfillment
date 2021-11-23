@@ -11,7 +11,7 @@ from numpy import array, empty, flip, float64, full, Infinity, random as np_rand
 from pandas import DataFrame
 from typing import Union
 
-from allocation.constants import DELIVERY, DELIVERY_NOT_EXECUTABLE
+from allocation.constants import DELIVERY, DELIVERY_NOT_EXECUTABLE, STOCK_NOT_AVAILABLE
 from allocation.allocator import Allocator
 from allocation.neighbourhood import Neighbourhood
 from dstrbntw.delivery import Delivery
@@ -36,6 +36,9 @@ class Optimizer(Allocator):
         # store main method of child class
         self.main = main
 
+        # set laceholder for best nodes
+        self.best_nodes = []
+
         # init a DataFrame to protocol the optimization run
         self.protocol = self.init_protocol()
 
@@ -44,6 +47,7 @@ class Optimizer(Allocator):
 
         # create seed allocation and calc obj value
         seed_allocation = self.seed_generator()
+        self.memorize_best_nodes(seed_allocation)
         self.prepare_evaluation()
         seed_obj_value = self.evaluation_model.objective_function(seed_allocation)
 
@@ -120,7 +124,7 @@ class Optimizer(Allocator):
         else:
 
             # no allocation possible for this order
-            return -10
+            return STOCK_NOT_AVAILABLE
 
     def seed_generator(self) -> array:
 
@@ -162,7 +166,7 @@ class Optimizer(Allocator):
             
         return seed
 
-    def calc_fitness(self, order_index:int, neighbour_index:int, current_node_index:int) -> float:
+    def calc_fitness(self, order_index:int, neighbour_index:int) -> float:
 
         ''' Evaluates cost-improvement of modifiying currently allocated node with its neighbour.
             Returns improvement as delta between allocation to neighbour and current allocation.
@@ -171,6 +175,7 @@ class Optimizer(Allocator):
         # get objects
         order = self.orders.list[order_index] # type: Order
         neighbour = self.nodes.__get__(index=neighbour_index) # type: Node
+        current_best_node = self.best_nodes[order_index] # type: Node
 
         #check if order is already allocated at node
         if order in neighbour.delivery.orders_to_deliver:
@@ -190,17 +195,14 @@ class Optimizer(Allocator):
         #print("40 iters: ", prototype_delivery.tot_duration)
 
         # check if current node is a real node or a failure record to allow comparison
-        if current_node_index > 0:
-
-            # get current node
-            current_node = self.nodes.__get__(index=current_node_index) # type: Node
+        if isinstance(current_best_node, Node):
 
             # compare proposed allocation with current allocation to determine improvement
-            return      (current_node.supply_rate - neighbour.supply_rate) * order.volume / MAX_PAL_VOLUME \
-                    +   (current_node.order_processing_rate - neighbour.order_processing_rate) * order.number_of_lines \
-                    +   (current_node.stock_holding_rate - neighbour.stock_holding_rate) * order.pieces \
-                    +   (current_node.tour_rate if current_node.delivery.tot_duration > 0 else 0) - neighbour.tour_rate \
-                    +   (current_node.route_rate * current_node.delivery.tot_duration) - (neighbour.route_rate * prototype_delivery.tot_duration)
+            return      (current_best_node.supply_rate - neighbour.supply_rate) * order.volume / MAX_PAL_VOLUME \
+                    +   (current_best_node.order_processing_rate - neighbour.order_processing_rate) * order.number_of_lines \
+                    +   (current_best_node.stock_holding_rate - neighbour.stock_holding_rate) * order.pieces \
+                    +   (current_best_node.tour_rate if current_best_node.delivery.tot_duration > 0 else 0) - neighbour.tour_rate \
+                    +   (current_best_node.route_rate * current_best_node.delivery.tot_duration) - (neighbour.route_rate * prototype_delivery.tot_duration)
 
         else:
             # calulcate profit of allocation
@@ -210,6 +212,56 @@ class Optimizer(Allocator):
                     +   neighbour.stock_holding_rate * order.pieces \
                     +   neighbour.tour_rate \
                     +   neighbour.route_rate * prototype_delivery.tot_duration
+
+    def calculate_neighbourhood_fitness(self) -> None:
+
+        ''' Determines the fitness of all neighbours by comparing how they would improve the objective value
+            in comparison to the current best allocaiton.'''
+
+        number_of_neighbours = 0
+
+        # calculate fitness value for each neighbour
+        for order_index, neighbours in enumerate(self.neighbourhood.lists):
+            order_index:int
+            neighbours:list
+
+            # determine fitness for candidate neibours
+            for neighbour_index, neighbour in enumerate(neighbours):
+                neighbour_index:int
+                neighbour:Node
+        
+                # evaluate fitness
+                index = number_of_neighbours + neighbour_index
+                self.neighbourhood.order_indexes[index] = order_index
+                self.neighbourhood.neighbour_indexes[index] = neighbour.index
+                self.neighbourhood.fitness[index] = self.calc_fitness(order_index, neighbour.index)
+
+            number_of_neighbours = len(neighbours)
+
+    def calculate_node_fitness(self, node_index:int) -> None:
+
+        ''' Determines the fitness of all neighbours by comparing how they would improve the objective value
+            in comparison to the current best allocaiton.
+            Returns an array of order indexes ranked according to the fitness of the respective neighbours
+            and an array of the neighbours ranked according to their fitness.'''
+
+        if node_index is not None:
+
+            # calculate fitness for all nodes affected by a change (=node)
+            for fitness_index, neighbour_index in enumerate(self.neighbourhood.neighbour_indexes):
+                fitness_index:int
+                neighbour_index:int
+
+                if neighbour_index == node_index:
+                    
+                    # detemrine order index
+                    order_index = self.neighbourhood.order_indexes[fitness_index]
+                    
+                    # recalculate fitness
+                    #print("fitness index:", fitness_index, "neighbour_fitness:", self.neighbourhood.fitness[fitness_index])
+                    #print("calc fitness for:", node_index)
+                    self.neighbourhood.fitness[fitness_index] = self.calc_fitness(order_index, node_index)
+                    #print("fitness index:", fitness_index, "neighbour_fitness:", self.neighbourhood.fitness[fitness_index])
 
     def restrictions_met(self, order_index:int, node_index:int) -> bool:
 
@@ -231,58 +283,38 @@ class Optimizer(Allocator):
         
         return False
     
-    def calculate_neighbourhood_fitness(self, best_allocation:array) -> None:
-
-        ''' Determines the fitness of all neighbours by comparing how they would improve the objective value
-            in comparison to the current best allocaiton.'''
-
-        # calculate fitness value for each neighbour
-        for order_index, neighbours in enumerate(self.neighbourhood.lists):
-            order_index:int
-            neighbours:list
-
-            # determine fitness for candidate neibours
-            for neighbour_index, neighbour in enumerate(neighbours):
-                neighbour_index:int
-                neighbour:Node
-        
-                # evaluate fitness
-                index = order_index + neighbour_index
-                self.neighbourhood.order_indexes[index] = order_index
-                self.neighbourhood.neighbour_indexes[index] = neighbour.index
-                self.neighbourhood.fitness[index] = self.calc_fitness(order_index, neighbour.index, best_allocation[order_index])
-
-    def calculate_node_fitness(self, best_allocation:array, node_index:int) -> None:
-
-        ''' Determines the fitness of all neighbours by comparing how they would improve the objective value
-            in comparison to the current best allocaiton.
-            Returns an array of order indexes ranked according to the fitness of the respective neighbours
-            and an array of the neighbours ranked according to their fitness.'''
-
-        if node_index is not None:
-            
-            # determine node
-            node = self.nodes.__get__(index=node_index) #type:Node
-
-            # calculate fitness for all nodes affected by a change (=node)
-            for fitness_index, neighbour_index in enumerate(self.neighbourhood.neighbour_indexes):
-                fitness_index:int
-                neighbour_index:int
-
-                if neighbour_index == node.index:
-                    
-                    # detemrine order index
-                    order_index = self.neighbourhood.order_indexes[fitness_index]
-                    
-                    # recalculate fitness
-                    self.neighbourhood.fitness[fitness_index] = self.calc_fitness(order_index, neighbour_index, best_allocation[order_index])
-
-
-
-
+    def protocol_iter(self, iter:int, approx_obj_value:float, best_obj_value:float, current_strategy:str, cur_time, new_allocation:array) -> None:
     
+        '''Protocols an iteration.'''
 
+        print(  "iter", iter, ": obj_value ", approx_obj_value, " best_obj_value", best_obj_value, 
+                ", alloc: ", new_allocation) #", tabu_list_len: ", self.tabu_add_tenure(iter, len(new_allocation)), 
 
+        self.protocol.loc[iter] = {     OBJ_VALUE: approx_obj_value, 
+                                        BEST_OBJ_VALUE: best_obj_value, 
+                                        STRATEGY: current_strategy,
+                                        CUR_TIME: cur_time
+        }
 
+    def memorable(self, new_obj_value:float) -> bool:
+    
+        ''' Retunrs True or False depending if the new_allocation is memorable or not.
+            Memorable = True if new_obj_value > obj_value of the last element of the memory list'''
 
+        return True if len(self.memory_list) < self.memory_length or self.memory_list[len(self.memory_list) -1][OBJ_VALUE] < new_obj_value else False
 
+    def memorize_best_nodes(self, new_allocation:array) -> None:
+
+        '''Stores a copy of node allocated to or the failure cause for each order.'''
+
+        best_nodes = []
+
+        for order_index, order in enumerate(self.orders.list):
+            order:Order
+
+            if order.allocated_node != None:
+                best_nodes.append(deepcopy(self.nodes.__get__(index=new_allocation[order_index])))
+            else:
+                best_nodes.append(deepcopy(new_allocation[order_index]))
+
+        self.best_nodes = best_nodes        

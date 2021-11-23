@@ -91,28 +91,33 @@ class Allocator:
             Schedules delivery and order processing. 
             Returns a prototype tour if the order is deliverable. Else returns None.'''
 
-        # check availablity of delivery capacities. Copy current tour and prototype routes after having added the new order.
-        delivery = self.nodes.__getattr__(DELIVERY, index=node_index) #type: Delivery
+        if node_index >= 0:
 
-        #check if order is already allocated at node
-        if order in delivery.orders_to_deliver:
-            # order is already in delivery tour, optimize tour only
-            prototype_delivery = delivery
-        
-        else:
+            # check availablity of delivery capacities. Copy current tour and prototype routes after having added the new order.
+            delivery = self.nodes.__getattr__(DELIVERY, index=node_index) #type: Delivery
 
-            # create copy and create test tour and add order to it
-            prototype_delivery = deepcopy(delivery) # type: Delivery
-            prototype_delivery.add_order(order)
-
-        # optimize routes
-        prototype_delivery.build_routes()
-
-        # check if prototype tour end before end of tours
-        if  prototype_delivery.approx_delivery_end(self.current_time, OP_CAPACITY[self.nodes.__getattr__(NODE_TYPE, index=node_index)]) \
-            <=  datetime.combine(self.current_time.date(), END_OF_TOURS):
+            #check if order is already allocated at node
+            if order in delivery.orders_to_deliver:
+                # order is already in delivery tour, optimize tour only
+                prototype_delivery = delivery
             
-            return prototype_delivery 
+            else:
+
+                # create copy and create test tour and add order to it
+                prototype_delivery = deepcopy(delivery) # type: Delivery
+                prototype_delivery.add_order(order)
+
+            # optimize routes
+            prototype_delivery.build_routes()
+
+            # check if prototype tour end before end of tours
+            if  prototype_delivery.approx_delivery_end(self.current_time, OP_CAPACITY[self.nodes.__getattr__(NODE_TYPE, index=node_index)]) \
+                <=  datetime.combine(self.current_time.date(), END_OF_TOURS):
+                
+                return prototype_delivery 
+            
+            else:
+                return None
         
         else:
             return None
