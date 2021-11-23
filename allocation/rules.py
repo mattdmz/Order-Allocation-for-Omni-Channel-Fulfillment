@@ -142,7 +142,7 @@ class Nearest_Already_Allocated_Nodes(Rule):
                 distances.append(distance(order.customer.location, node.location))
             else:
                 not_allocated_indexes.append(node.index)
-                not_allocated_distances.append(self.marginal_costs(order, node)) #distance(order.customer.location, node.location))
+                not_allocated_distances.append(distance(order.customer.location, node.location)) #self.marginal_costs(order, node)) #
 
         #transfrom to numpy arrays to perfrom argsort
         indexes = array(indexes, dtype=int)
@@ -196,7 +196,7 @@ class Allocation_Of_Nearest_Order(Rule):
 
             else:
                 not_allocated_indexes.append(node.index)
-                not_allocated_distances.append(self.marginal_costs(order, node)) #distance(order.customer.location, node.location))
+                not_allocated_distances.append(distance(order.customer.location, node.location)) #self.marginal_costs(order, node))
 
         # transfrom to numpy arrays to perfrom argsort
         indexes = array(indexes, dtype=int)
