@@ -155,7 +155,7 @@ class Transactions_on_Day():
 
         #extract
 
-        self.name = Transactions_in_Period.__name__
+        self.name = Transactions_on_Day.__name__
         self.sql = (f"SELECT {table[0]}.{columns if columns is not None else '*'} "
                     f"FROM {table} as {table[0]}{Join.customers(fc) if table == ORDERS else Join.nodes(fc)} "
                     f"WHERE {table[0]}.{DATE} = '{day}' {'AND ' if start_time is not None or end_time is not None else ''}"
