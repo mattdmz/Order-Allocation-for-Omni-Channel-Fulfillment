@@ -1,4 +1,3 @@
-
 ###############################################################################################
 
 '''This file contains the class Tours and its subclass Tour.'''
@@ -124,40 +123,6 @@ class Delivery(Vehicle):
         if len(self.duration_matrix) == 1:
             self.duration_matrix = array([0.0], dtype=float32)
 
-    # def modify_indexes(self) -> int:
-
-    #     ''' Modifies the indexes of the orders to deliver and from the delviery route.
-    #         Removes order form delivery route.
-    #         This method must be run when an order is removed from a delivery tour.'''
-
-    #     if len(self.orders_to_deliver) > 0:
-
-    #         # get index of order to remove
-    #         delivery_indexes = [delivery_index for delivery_index in self.routes[1:-1]]
-    #         indexes_of_orders_to_deliver = [order.delivery_index for order in self.orders_to_deliver]
-
-    #         for delivery_index in delivery_indexes:
-    #             delivery_index:int
-                
-    #             if delivery_index not in indexes_of_orders_to_deliver:
-    #                 delivery_index_of_order_to_remove = delivery_index
-    #                 break
-
-    #         # reducs delivery index for all orders with delivery index higher than order_to_remove.delivery_index
-    #         for order in self.orders_to_deliver:
-    #             order:Order
-                
-    #             if order.delivery_index > delivery_index_of_order_to_remove:
-    #                 order.delivery_index -= 1
-
-    #         # remove from tour
-    #         self.routes.remove(delivery_index_of_order_to_remove)
-        
-    #     else:
-    #         return self.routes.pop(1) if len(self.duration_matrix) > 1 else None
-
-    #     return delivery_index_of_order_to_remove
-
     def add_order(self, order:Order) -> array:
 
         '''Adds order to delivery tour.'''
@@ -187,8 +152,6 @@ class Delivery(Vehicle):
             index_of_order_to_remove = self.orders_to_deliver.index(order)
             self.orders_to_deliver.remove(order)
             self.delivery_volume.remove(order.volume)
-
-        #delivery_index_of_order_to_remove = self.modify_indexes()
 
         if index_of_order_to_remove is not None:
             self.remove_from_duration_matrix(index_of_order_to_remove+1)
