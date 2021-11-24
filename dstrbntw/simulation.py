@@ -43,6 +43,9 @@ class Simulation:
             # check if day is a workingday
             if this_date.isoweekday() <= NUMBER_OF_WORKDAYS:
 
+                # this_time = datetime.combine(this_date, time(12,0,0))
+                # allocation_schedule.append(this_time)
+
                 this_time = datetime.combine(this_date, ALLOC_START_TIME)
 
                 if this_date == self.experiment.end:
