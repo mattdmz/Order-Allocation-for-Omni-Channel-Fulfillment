@@ -367,7 +367,7 @@ class Allocator:
 
         return (order.volume / MAX_PAL_VOLUME) * node.supply_rate
 
-    def marginal_costs(self, order:Order, node:Node):
+    def marginal_fulfillment_costs(self, order:Order, node:Node):
         
         ''' Support method for Dynamic1.
             Returns marginal holding and backorder costs of maintaining 
@@ -387,24 +387,25 @@ class Allocator:
 
         return ALLOC_OPERATOR(marg_holding_and_backorder_costs) + self.order_processing_costs(order, node) + self.delivery_costs_of_detour(order, node)
 
-    def expected_costs(self, order:Order, node:Node):
+    def marginal_allocation_costs(self, order:Order, node:Node):
         
         ''' Support method for Modified_Dynamic_1.
             Returns marginal holding and backorder costs of maintaining 
             one additional unit of article article_index at node node_index.'''
 
-        reduction_in_stock_holding_costs = []
-        days_until_rplm = self.days_until_next_replenishment(node.node_type)
+        marg_holding_and_backorder_costs = []
+        days_since_rplm = self.days_since_last_replenishment(node.node_type)
 
         for line in order.lines:
             line:Order.Line
 
-            expected_stock_level_at_rplm_time = self.expected_stock_level_at_end_of_rpm_cyle(line.article.index, node.index, days_until_rplm)
-            current_stock_level = self.stock.current_level[line.article.index, node.index]
-            reduction_in_stock_holding_costs.append(self.reduction_in_stock_holding_costs(node, current_stock_level, expected_stock_level_at_rplm_time, days_until_rplm))
+            # calculate cumulative distribution function for the expected stock at the end of the replenishment cycle
+            cdf = norm.cdf(self.expected_stock_level_at_end_of_rpm_cyle(line.article.index, node.index, days_since_rplm))
 
-        return    self.supply_costs(order, node) + sum(reduction_in_stock_holding_costs) \
-                + self.order_processing_costs(order, node) + self.delivery_costs(order, node)
+            # calculate and append marginal costs
+            marg_holding_and_backorder_costs.append(node.stock_holding_rate * cdf - node.supply_rate * (1 - cdf))
+
+        return    self.delivery_costs(order, node) - ALLOC_OPERATOR(marg_holding_and_backorder_costs)
 
 
 

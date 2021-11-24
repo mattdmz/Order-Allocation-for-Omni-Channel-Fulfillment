@@ -267,14 +267,14 @@ class Dynamic_1(Rule):
             node:Node
             
             indexes[i] = node.index
-            marginal_costs[i] = self.marginal_costs(order, node)
+            marginal_costs[i] = self.marginal_fulfillment_costs(order, node)
         
         return indexes[marginal_costs.argsort()]
 
 
-class Modified_Dynamic_1(Rule):
+class Mahar_Bretthauer_Venkataramanan(Rule):
 
-    ''' Allocates orders based on the expected fulfillment costs for the order at the node.'''
+    ''' Allocates orders based on the marginal fulfillment costs for the order at the node.'''
 
     __type__ = RULE_BASED
 
@@ -298,7 +298,7 @@ class Modified_Dynamic_1(Rule):
             node:Node
             
             indexes[i] = node.index
-            expected_costs[i] = self.expected_costs(order, node)
+            expected_costs[i] = self.marginal_allocation_costs(order, node)
         
         return indexes[expected_costs.argsort()]
 
