@@ -71,7 +71,7 @@ class Simulation:
         processing_evaluation = region.process_batches(current_time)
 
         if processing_evaluation is not None:
-            
+            region.clear_allocated_orders()
             self.results.store_orders_evaluation(processing_evaluation, region.id)
             self.results.export_orders_evaluation(processing_evaluation)
 
