@@ -32,10 +32,11 @@ class Experiment:
 
 class Experiment_Runner:
 
-    def __init__(self, test_days:int, test_periods:int, allocation_methods:list) -> None:
+    def __init__(self, start_day:int, test_days:int, test_periods:int, allocation_methods:list) -> None:
 
         '''Defines experiment framework.'''
 
+        self.start_day = start_day
         self.test_days = test_days
         self.test_periods = test_periods
         self.allocation_methods = allocation_methods
@@ -44,7 +45,8 @@ class Experiment_Runner:
 
         '''Returns list of day tuples (start date, end date) to run the experiment with.'''
 
-        return [(date(2019, 3, day), date(2019, 3, day-1+ self.test_days)) for day in range(1, self.test_periods*2, self.test_days)]
+        return [(date(2019, 3, day), date(2019, 3, day-1+ self.test_days)) \
+                for day in range(self.start_day, self.start_day+self.test_periods*2, self.test_days)]
     
     def run(self, experiment:Experiment) -> None:
 
