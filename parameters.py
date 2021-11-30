@@ -142,7 +142,7 @@ NUMBER_OF_WORKDAYS = 6
 
 # order processing capacity in orderlines per minute
 OP_CAPACITY = { SMALL_STORE: 1,   #60 orderlines/hour
-                REGULAR_STORE: 1.5,    #100 orderlines/hour
+                REGULAR_STORE: 1.5,    #90 orderlines/hour
                 FULFILLMENT_CENTER: 40  #2500 orderlines/hour
 }
 
