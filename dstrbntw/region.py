@@ -268,19 +268,20 @@ class Region:
             order:Order
 
             # check if allocation failed and if there is another day left to retry
-            if (node_index < 0 and order.allocation_retried) or (node_index < 0 and current_time.date() == ORDER_PROCESSING_END):
+            if order.allocated_node is None:
+                if (node_index < 0 and order.allocation_retried) or (node_index < 0 and current_time.date() == ORDER_PROCESSING_END):
 
-                # protocol allocation failure reason
-                order.failure = node_index
-                
-                # allocation retried and failed, protocol order as not allocated with the failure reason
-                order_evaluation = order.protocol(self.id, datetime(2099, 1, 1, 0, 0))
-                not_allocated_orders_evaluation = not_allocated_orders_evaluation.append(order_evaluation, ignore_index=True)
+                    # protocol allocation failure reason
+                    order.failure = node_index
+                    
+                    # allocation retried and failed, protocol order as not allocated with the failure reason
+                    order_evaluation = order.protocol(self.id, datetime(2099, 1, 1, 0, 0))
+                    not_allocated_orders_evaluation = not_allocated_orders_evaluation.append(order_evaluation, ignore_index=True)
 
-            elif node_index < 0 and not order.allocation_retried:                                                                         
+                elif node_index < 0 and not order.allocation_retried:                                                                         
 
-                # set order on allocation retry list
-                self.orders.allocation_retry(order)
+                    # set order on allocation retry list
+                    self.orders.allocation_retry(order)
 
         return not_allocated_orders_evaluation if len(not_allocated_orders_evaluation.index) > 0 else None
 
@@ -296,7 +297,7 @@ class Region:
             if order.allocated_node == None:
                 
                 # allocation retried and failed, protocol order as not allocated with the failure reason
-                remaining_orders_evaluation = remaining_orders_evaluation.append(order.protocol(self.id, None), ignore_index=True)
+                remainig_orders_evaluation = remainig_orders_evaluation.append(order.protocol(self.id, None), ignore_index=True)
 
         return remainig_orders_evaluation if len(remainig_orders_evaluation.index) > 0 else None
 
@@ -416,7 +417,7 @@ class Region:
                 for order in batch.orders:
                     order:Order
 
-                    if order.processable:
+                    if order.processable and order.failure == None:
 
                         # consume stock            
                         for line in order.lines:
@@ -515,6 +516,16 @@ class Region:
         
         self.orders.reschedule_unallocated()
 
+    def clear_allocated_orders(self) -> None:
+
+        '''Removes processed orders from list of orders.'''
+
+        # clear already processed orders
+        for order in self.orders.list:
+            order:Order
+            if order.processable:
+                self.orders.list.remove(order)
+
     def terminate_allocation(self, allocation_type:str) -> None:
 
         ''' Clears list of orders if rulebased allocation is active and clears sales 
@@ -523,6 +534,7 @@ class Region:
             self.orders.allocation_retry_needed in order to not get lost.'''
 
         if allocation_type == RULE_BASED:
+            # clear all orders
             self.orders.clear()
 
         self.sales.clear()
