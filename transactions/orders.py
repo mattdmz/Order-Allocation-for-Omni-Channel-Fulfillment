@@ -108,7 +108,7 @@ class Order():
                         DIMINUISHED_STOCK_VALUE: diminuished_stock_value,
                         PROFIT: self.price + diminuished_stock_value - supply_costs - processing_costs - delivery_costs if self.allocated_node is not None else 0,
                         DELIVERED_ORDERS: 1 if self.allocated_node is not None else 0,
-                        SAMEDAY_DELIVERY: self.delivered_sameday(proc_time),
+                        SAMEDAY_DELIVERY: self.delivered_sameday(proc_time) if proc_time is not None else "",
                         RETRY: self.allocation_retried,
                         DELIVERY_DURATION: delivery_duration,
                         DISTANCE: distance(self.customer.location, self.allocated_node.location) if self.allocated_node is not None else 0,
