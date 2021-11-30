@@ -35,7 +35,7 @@ class Tabu_Search(Optimizer):
         self.memory_list = []
         self.memory_length = 5
         self.max_iter = self.number_of_available_nodes * self.number_of_orders_to_allocate * 4
-        self.change_restart_strategy_factor = 2
+        self.change_restart_strategy_factor = 3
 
         # set lists and icts
         self.tabu_add = {}                  # format tabu_add[node_index]: iteration the tabu ends(iter + tabu_add_tenure)
@@ -276,11 +276,7 @@ class Tabu_Search(Optimizer):
                 pass
                 print("iter", iter-1, "no move carried out.")
                 
-            # evaluate fitness of all moves
-            if iter_since_improvement == self.max_iter_since_improvement - 1 or iter_since_improvement == self.max_iter_since_improvement:
-                moves, fitness_values = self.moves.random_permutation()
-            else:
-                moves, fitness_values = self.moves.evaluate()
+            moves, fitness_values = self.moves.evaluate()
 
             # carry out first admissable move
             for move, fitness in zip(moves, fitness_values):
