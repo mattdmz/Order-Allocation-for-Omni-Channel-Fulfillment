@@ -283,7 +283,7 @@ class Result_Protocols:
 
         '''Exports optimization protocol.'''
 
-        write_df(optimization_protocol, self.run_id + OPT_PROTOCOL_FILE_NAME + current_time.strftime("%m%d%h%m"), \
+        write_df(optimization_protocol, self.run_id + OPT_PROTOCOL_FILE_NAME + current_time.strftime("%Y%m%d_%H%M"), \
                  dir_path=self.output_dir_path, header=True, index=True)
 
     def export_sales_evaluation(self, sales_evaluation:dict) -> None:
