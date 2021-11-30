@@ -9,14 +9,14 @@
 from copy import deepcopy
 from datetime import datetime
 from math import  floor, sqrt
-from numpy import append, argsort, array, full, float32
+from numpy import array, full, float32
 from scipy.stats import norm
 
 from allocation.constants import *
 from allocation.evaluation import Evaluation_Model
 from database.constants import NODE_TYPE
 from dstrbntw.constants import ACCEPTING_ORDERS
-from dstrbntw.delivery import Delivery
+from dstrbntw.delivery import Delivery, create_prototype
 from dstrbntw.region import Node
 from dstrbntw.region import Region
 from parameters import ALLOC_START_TIME, ALLOC_OPERATOR, END_OF_TOURS, MAX_PAL_VOLUME, OP_CAPACITY, OP_END_TIME, RPL_CYCLE_DURATION
@@ -100,17 +100,13 @@ class Allocator:
             if order in delivery.orders_to_deliver:
                 # order is already in delivery tour, optimize tour only
                 prototype_delivery = delivery
+                prototype_delivery.build_routes()
             
             else:
-
-                # create copy and create test tour and add order to it
-                prototype_delivery = deepcopy(delivery) # type: Delivery
-                prototype_delivery.add_order(order)
-
-            # optimize routes
-            prototype_delivery.build_routes()
+                prototype_delivery = create_prototype(delivery, order)
 
             # check if prototype tour end before end of tours
+
             if  prototype_delivery.approx_delivery_end(self.current_time, OP_CAPACITY[self.nodes.__getattr__(NODE_TYPE, index=node_index)]) \
                 <=  datetime.combine(self.current_time.date(), END_OF_TOURS):
                 
@@ -333,10 +329,8 @@ class Allocator:
     def delivery_costs(self, order:Order, node:Node) -> float:
 
         '''Returns the delivery costs if the order is allocated at the examined node.'''
-
-        prototype_delivery = deepcopy(node.delivery) #type:Delivery
-        prototype_delivery.add_order(order)
-        prototype_delivery.build_routes()
+               
+        prototype_delivery = create_prototype(node.delivery, order)
         
         return  (prototype_delivery.tot_duration * node.route_rate) \
               + (node.tour_rate if len(node.delivery.orders_to_deliver) == 0 else 0)
@@ -345,9 +339,7 @@ class Allocator:
 
         '''Returns the delivery costs of detour if the order is allocated at the examined node.'''
 
-        prototype_delivery = deepcopy(node.delivery) #type:Delivery
-        prototype_delivery.add_order(order)
-        prototype_delivery.build_routes()
+        prototype_delivery = create_prototype(node.delivery, order)
         
         return  (prototype_delivery.tot_duration * node.route_rate) \
               - (node.delivery.tot_duration * node.route_rate) \
