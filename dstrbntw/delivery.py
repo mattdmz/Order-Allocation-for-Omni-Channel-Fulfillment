@@ -4,6 +4,7 @@
 
 ###############################################################################################
 
+from copy import deepcopy
 from datetime import datetime, time
 from numpy import array, append, concatenate, delete, float32, zeros
 from util import sol2routes
@@ -389,5 +390,26 @@ class Delivery(Vehicle):
         '''Returns True if order processing is starts after current_time, else returns False.'''
 
         return True if self.processing_start() > current_time else False
+
+
+def create_prototype(current_delivery:Delivery, order:Order) -> Delivery:
+
+    ''' Copies the current delivery and passes the already allocated orders to prevent duplication of order objects.
+        Adds new order to delivery tour and builds routes for the new delivery tour.'''
+
+    # copy existing delivery
+    prototype_delivery = deepcopy(current_delivery)
+    
+    # reset orders to deliver and 
+    prototype_delivery.orders_to_deliver = [order for order in current_delivery.orders_to_deliver]
+
+    # construct prototype delivery with or without additional order 
+    # (based if prototype is constructed for adding or dropping order form tour)
+    if order not in prototype_delivery.orders_to_deliver:
+        prototype_delivery.add_order(order)
+        
+    prototype_delivery.build_routes()
+
+    return prototype_delivery
 
 
