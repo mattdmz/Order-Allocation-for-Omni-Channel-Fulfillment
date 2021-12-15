@@ -1,4 +1,8 @@
-Project connected to Masterthesis "Omni-ChannelFulfillment in mehrstufigen Distributionsnetzwerken - ein ganzheitlicher Optimierungsansatz"
+Project connected to Masterthesis "Omni-Channel Fulfillment in multilevel distribution networks - a hollistic optimization approach"
+
+Contains a main logic to allocate orders in a virtual distribution network with a varaible number of fulfillment regions.
+Differnet order allocation rules were developed to allocate a set of orders to nodes of the distribution network for same day delivery.
+A Tabu Search Algorithm was implemented to optimize a initial allocation.
 
 Files:
   - experiment.py contains a configurable script for the experiments.
