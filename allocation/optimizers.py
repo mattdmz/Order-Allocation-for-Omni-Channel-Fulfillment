@@ -248,9 +248,9 @@ class Tabu_Search(Optimizer):
         # set starting strategy
         current_strategy = self.restart_memory_based.__name__ + "_" + str(memory_list_restart_index)
 
-        print(" ")
-        print("start optimization for", self.current_time)
-        print("iter:", iter, "best_obj_value:", best_obj_value)
+        # print(" ")
+        print("start optimization for region", self.region_id, "at", self.current_time)
+        # print("iter:", iter, "best_obj_value:", best_obj_value)
 
         # start timing
         timing_start = timer()
@@ -274,7 +274,7 @@ class Tabu_Search(Optimizer):
                 move_carried_out = False
             else:
                 pass
-                print("iter", iter-1, "no move carried out.")
+                # print("iter", iter-1, "no move carried out.")
                 
             moves, fitness_values = self.moves.evaluate()
 
@@ -310,7 +310,7 @@ class Tabu_Search(Optimizer):
                             # carry out move
                             allocation[order_index] = node_index
 
-                            print("iter", iter, ": allocating ", node_index, " to index ", order_index)
+                            # print("iter", iter, ": allocating ", node_index, " to index ", order_index)
 
                             # allocate to neighbour
                             self.allocate(self.orders.list[order_index], node_index)
@@ -327,7 +327,7 @@ class Tabu_Search(Optimizer):
                             obj_value = self.evaluation_model.objective_function(allocation)
                             current_obj_value = obj_value
                             
-                            print("new_obj_value (approx):", new_obj_value, "obj_val:", obj_value, "best_obj_val:", best_obj_value)
+                            # print("new_obj_value (approx):", new_obj_value, "obj_val:", obj_value, "best_obj_val:", best_obj_value)
 
                             # check if allocation is worth memorizing
                             if self.memorable(obj_value):
@@ -366,21 +366,20 @@ class Tabu_Search(Optimizer):
                     # add strategy change for protocol
                     current_strategy = self.restart_memory_based.__name__+ "_" + str(memory_list_restart_index)
                     
-                    print("---")
-                    print("iter_", iter, ": new_strategy", current_strategy, "using memory index: ", memory_list_restart_index)
-                    print("---")
+                    # print("---")
+                    # print("iter_", iter, ": new_strategy", current_strategy, "using memory index: ", memory_list_restart_index)
+                    # print("---")
 
                 else:
                     # use frequenecy based restart strategy
                     allocation, self.tabu_add, self.tabu_drop = self.restart_frequency_based(allocation)
-                    self.change_restart_strategy_factor
                     
                     # add strategy change for protocol
                     current_strategy = self.restart_frequency_based.__name__+ "_" + str(memory_list_restart_index)
 
-                    print("---")
-                    print("iter", iter, ": new_strategy", current_strategy)
-                    print("---")
+                    # print("---")
+                    # print("iter", iter, ": new_strategy", current_strategy)
+                    # print("---")
 
                 # update obj_function ans current_obj_function
                 self.prepare_evaluation()
