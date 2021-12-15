@@ -10,7 +10,7 @@ Files:
                   Differnet fulfillment regions can be selected.
                   Different order allocation rules or optimizers can be compared in the experiments.
   - main.py contains the main program logic.
-  - parameters.py contains the all variable parameters (costs, perfromances, capacities, times) used.
+  - parameters.py contains all variable parameters (costs, perfromances, capacities, times) used.
   - configs.py contains input and output directory paths as well as encoding variables.
 
 Connection to local database "masterarbeit" required.
