@@ -1,4 +1,4 @@
-Project connected to Masterthesis "Omni-Channel Fulfillment in multilevel distribution networks - a hollistic optimization approach"
+Project connected to Masterthesis "Omni-Channel Fulfillment in multilevel distribution networks - a holistic optimization approach"
 
 Contains a main logic to allocate orders in a virtual distribution network with a varaible number of fulfillment regions.
 Differnet order allocation rules were developed to allocate a set of orders to nodes of the distribution network for same day delivery.
